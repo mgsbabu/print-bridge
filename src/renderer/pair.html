@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Pair with TailorApp</title>
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; style-src 'unsafe-inline'; connect-src http://127.0.0.1:7755" />
+  <style>
+    body { font: 13px -apple-system, system-ui, sans-serif; margin: 0; padding: 20px;
+           color: #222; background: #f6f6f6; }
+    h1 { font-size: 16px; margin: 0 0 14px; }
+    label { display: block; margin: 10px 0 4px; font-weight: 500; }
+    input { width: 100%; box-sizing: border-box; padding: 6px 8px; font: inherit;
+            border: 1px solid #c4c4c4; border-radius: 4px; background: #fff; }
+    .row { display: flex; gap: 10px; }
+    .row > div { flex: 1; }
+    button { margin-top: 16px; padding: 8px 16px; font: inherit; font-weight: 500;
+             background: #0a84ff; color: #fff; border: 0; border-radius: 5px;
+             cursor: pointer; }
+    button:disabled { background: #999; cursor: progress; }
+    .msg { margin-top: 14px; padding: 8px 10px; border-radius: 4px; font-size: 12px; }
+    .err { background: #ffe4e1; color: #b00020; }
+    .ok  { background: #e0f5e0; color: #1b5e20; }
+  </style>
+</head>
+<body>
+  <h1>Pair with TailorApp</h1>
+  <form id="f">
+    <div class="row">
+      <div>
+        <label for="tenantId">Tenant ID</label>
+        <input id="tenantId" name="tenantId" type="number" min="1" required />
+      </div>
+      <div>
+        <label for="orgUnitId">Org Unit ID</label>
+        <input id="orgUnitId" name="orgUnitId" type="number" min="1" required />
+      </div>
+    </div>
+    <label for="tenantOrigin">Tenant Origin</label>
+    <input id="tenantOrigin" name="tenantOrigin" type="url"
+           placeholder="https://app.tailorapp.in" required />
+    <label for="token">Pairing Token</label>
+    <input id="token" name="token" type="text" minlength="32"
+           placeholder="64-character token from the pairing screen" required />
+    <button type="submit" id="submit">Pair</button>
+    <div id="msg"></div>
+  </form>
+  <script>
+    const f = document.getElementById("f");
+    const btn = document.getElementById("submit");
+    const msg = document.getElementById("msg");
+    f.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      msg.className = "";
+      msg.textContent = "";
+      btn.disabled = true;
+      try {
+        const body = {
+          tenantId: Number(f.tenantId.value),
+          orgUnitId: Number(f.orgUnitId.value),
+          token: f.token.value.trim(),
+          tenantOrigin: f.tenantOrigin.value.trim(),
+        };
+        const r = await fetch("http://127.0.0.1:7755/pair", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+        const data = await r.json();
+        if (!r.ok) throw new Error(data.error || "Pairing failed");
+        msg.className = "msg ok";
+        msg.textContent = "Paired. You can close this window.";
+      } catch (err) {
+        msg.className = "msg err";
+        msg.textContent = err.message;
+      } finally {
+        btn.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>

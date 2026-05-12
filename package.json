@@ -22,7 +22,7 @@
 		"@grandchef/node-printer": "^0.8.0",
 		"better-sqlite3": "^11.3.0",
 		"cors": "^2.8.5",
-		"electron-store": "^10.0.0",
+		"electron-store": "^8.2.0",
 		"electron-updater": "^6.3.9",
 		"express": "^4.21.0",
 		"node-thermal-printer": "^4.4.4",
