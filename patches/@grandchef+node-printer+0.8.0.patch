@@ -1,0 +1,31 @@
+diff --git a/node_modules/@grandchef/node-printer/binding.gyp b/node_modules/@grandchef/node-printer/binding.gyp
+index d84b174..d675e8c 100644
+--- a/node_modules/@grandchef/node-printer/binding.gyp
++++ b/node_modules/@grandchef/node-printer/binding.gyp
+@@ -66,7 +66,7 @@
+           ],
+           "msvs_settings": {
+             "VCCLCompilerTool": {
+-              "AdditionalOptions": [ "-std:c++17", ],
++              "AdditionalOptions": [ "-std:c++20", ],
+             },
+           },
+         }],
+@@ -75,14 +75,15 @@
+             "-stdlib=libc++"
+           ],
+           'xcode_settings': {
+-            "OTHER_CPLUSPLUSFLAGS":["-std=c++17", "-stdlib=libc++"],
++            "OTHER_CPLUSPLUSFLAGS":["-std=c++20", "-stdlib=libc++"],
++            "CLANG_CXX_LANGUAGE_STANDARD": "c++20",
+             "OTHER_LDFLAGS": ["-stdlib=libc++"],
+             "MACOSX_DEPLOYMENT_TARGET": "14.0",
+           },
+         }],
+         ['OS=="linux"', {
+           'cflags_cc':[
+-            "-std=c++17"
++            "-std=c++20"
+           ]
+         }],
+       ]

@@ -7,7 +7,8 @@
 	"license": "UNLICENSED",
 	"private": true,
 	"scripts": {
-		"dev": "tsx watch src/main/index.ts",
+		"postinstall": "patch-package",
+		"dev": "concurrently -k -n tsc,electron \"tsc -w -p tsconfig.json --preserveWatchOutput\" \"wait-on dist/main/index.js && electron .\"",
 		"build": "tsc -p tsconfig.json",
 		"package": "npm run build && electron-builder",
 		"package:win": "npm run build && electron-builder --win",
@@ -30,19 +31,22 @@
 		"pino-roll": "^4.0.0",
 		"qrcode": "^1.5.4",
 		"zod": "^3.23.8"
-    },
-    "overrides": {
+	},
+	"overrides": {
 		"node-gyp": "^10.2.0"
 	},
-    "devDependencies": {
-		"@types/cors": "^2.8.17", 
+	"devDependencies": {
+		"@types/cors": "^2.8.17",
 		"@types/express": "^5.0.0",
 		"@types/node": "^22.0.0",
+		"concurrently": "^9.2.1",
 		"electron": "^33.0.0",
 		"electron-builder": "^26.0.0",
 		"eslint": "^9.13.0",
+		"patch-package": "^8.0.1",
 		"tsx": "^4.19.2",
 		"typescript": "^5.6.3",
-		"vitest": "^2.1.4"
-	}     
+		"vitest": "^2.1.4",
+		"wait-on": "^9.0.10"
+	}
 }
