@@ -1,0 +1,48 @@
+{
+	"name": "print-bridge",
+	"version": "0.1.0",
+	"description": "Local print bridge agent for TailorApp — pushes PDF/ZPL/ESC-POS jobs from the cloud web app to outlet printers.",
+	"main": "dist/main/index.js",
+	"author": "TailorApp Technologies Pvt Ltd",
+	"license": "UNLICENSED",
+	"private": true,
+	"scripts": {
+		"dev": "tsx watch src/main/index.ts",
+		"build": "tsc -p tsconfig.json",
+		"package": "npm run build && electron-builder",
+		"package:win": "npm run build && electron-builder --win",
+		"package:mac": "npm run build && electron-builder --mac",
+		"package:linux": "npm run build && electron-builder --linux",
+		"lint": "eslint src test",
+		"test": "vitest run",
+		"typecheck": "tsc --noEmit"
+	},
+	"dependencies": {
+		"@grandchef/node-printer": "^0.8.0",
+		"better-sqlite3": "^11.3.0",
+		"cors": "^2.8.5",
+		"electron-store": "^10.0.0",
+		"electron-updater": "^6.3.9",
+		"express": "^4.21.0",
+		"node-thermal-printer": "^4.4.4",
+		"pdf-to-printer": "^5.6.0",
+		"pino": "^9.5.0",
+		"pino-roll": "^4.0.0",
+		"qrcode": "^1.5.4",
+		"zod": "^3.23.8"
+    },
+    "overrides": {
+		"node-gyp": "^10.2.0"
+	},
+    "devDependencies": {
+		"@types/cors": "^2.8.17", 
+		"@types/express": "^5.0.0",
+		"@types/node": "^22.0.0",
+		"electron": "^33.0.0",
+		"electron-builder": "^26.0.0",
+		"eslint": "^9.13.0",
+		"tsx": "^4.19.2",
+		"typescript": "^5.6.3",
+		"vitest": "^2.1.4"
+	}     
+}

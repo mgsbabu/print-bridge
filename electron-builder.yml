@@ -1,0 +1,59 @@
+appId: in.tailorapp.printbridge
+productName: TailorApp Print Bridge
+copyright: Copyright © 2026 TailorApp Technologies Pvt Ltd
+
+directories:
+  output: release
+  buildResources: assets
+
+files:
+  - dist/**/*
+  - assets/**/*
+  - node_modules/**/*
+  - package.json
+
+asarUnpack:
+  - node_modules/better-sqlite3/**
+  - node_modules/@grandchef/node-printer/**
+
+mac:
+  category: public.app-category.utilities
+  hardenedRuntime: true
+  gatekeeperAssess: false
+  icon: assets/icon.icns
+  target:
+    - target: dmg
+      arch:
+        - arm64
+  notarize: false
+
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+  icon: assets/icon.ico
+  signAndEditExecutable: true
+  signtoolOptions:
+    publisherName: FabPos Technologies Pvt Ltd
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  shortcutName: FabPos Print Bridge
+
+linux:
+  target:
+    - AppImage
+    - deb
+  icon: assets/icon.png
+  category: Utility
+  maintainer: support@fabtailor.in
+
+publish:
+  provider: github
+  owner: mgsbabu
+  repo: print-bridge
+  releaseType: release
