@@ -11,7 +11,10 @@ import { dispatchZpl } from "./dispatcher/zpl";
 import { NetworkPrinter } from "../shared/protocol";
 import { openJobsDb } from "./jobs/db";
 import { JobsRepository } from "./jobs/repository";
+import { startAutoUpdate } from "./updater";
 import { log } from "./logger";
+
+const IDLE_WINDOW_MS = 2 * 60_000;
 
 const STATUS_WINDOW_MS = 5 * 60_000;
 const STATUS_REFRESH_MS = 30_000;
@@ -141,6 +144,14 @@ app.whenReady().then(() => {
   log.info({ port: BRIDGE_PORT }, "bridge listening");
   void reloadPrintersAndRefresh();
   setInterval(refreshMenu, STATUS_REFRESH_MS);
+
+  if (!app.isPackaged) {
+    log.debug("auto-update: skipping in dev (electron-updater requires a packaged build)");
+  } else {
+    startAutoUpdate({
+      isIdle: () => (jobsRepo?.getSuccessRate(IDLE_WINDOW_MS).total ?? 0) === 0,
+    });
+  }
 });
 
 app.on("window-all-closed", () => {

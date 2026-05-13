@@ -14,8 +14,11 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          # Mac runner overrides notarize=true so production DMGs are
+          # notarized; electron-builder.yml keeps notarize=false so
+          # local ./deploy.sh works without Apple creds.
           - os: macos-latest
-            ebargs: "--mac"
+            ebargs: "--mac --x64 --arm64 -c.mac.notarize=true"
           - os: windows-latest
             ebargs: "--win"
           - os: ubuntu-latest
