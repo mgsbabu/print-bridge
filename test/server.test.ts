@@ -12,6 +12,7 @@ interface Harness {
   state: { pairing: PairingRecord | null; printers: LoadedPrinter[] };
   dispatchPdf: ReturnType<typeof vi.fn<[PrintRequest], Promise<PrintResult>>>;
   dispatchZpl: ReturnType<typeof vi.fn<[PrintRequest], Promise<PrintResult>>>;
+  dispatchEscpos: ReturnType<typeof vi.fn<[PrintRequest], Promise<PrintResult>>>;
   jobRecorder: JobRecorder & {
     start: ReturnType<typeof vi.fn>;
     finish: ReturnType<typeof vi.fn>;
@@ -28,10 +29,12 @@ async function startHarness(
   printers: LoadedPrinter[] = [],
   dispatchImpl: (req: PrintRequest) => Promise<PrintResult> = okResult,
   zplImpl: (req: PrintRequest) => Promise<PrintResult> = okResult,
+  escposImpl: (req: PrintRequest) => Promise<PrintResult> = okResult,
 ): Promise<Harness> {
   const state = { pairing: initial, printers };
   const dispatchPdf = vi.fn(dispatchImpl);
   const dispatchZpl = vi.fn(zplImpl);
+  const dispatchEscpos = vi.fn(escposImpl);
   let nextJobId = 1;
   const jobRecorder = {
     start: vi.fn(() => nextJobId++),
@@ -48,6 +51,7 @@ async function startHarness(
     refreshPrinters: async () => state.printers,
     dispatchPdf,
     dispatchZpl,
+    dispatchEscpos,
     jobRecorder,
   };
   const app = createApp(deps);
@@ -55,7 +59,15 @@ async function startHarness(
     const s = app.listen(0, "127.0.0.1", () => resolve(s));
   });
   const { port } = server.address() as AddressInfo;
-  return { url: `http://127.0.0.1:${port}`, server, state, dispatchPdf, dispatchZpl, jobRecorder };
+  return {
+    url: `http://127.0.0.1:${port}`,
+    server,
+    state,
+    dispatchPdf,
+    dispatchZpl,
+    dispatchEscpos,
+    jobRecorder,
+  };
 }
 
 const VALID_PAIR: PairingRecord = {
@@ -269,18 +281,18 @@ describe("POST /print", () => {
     }
   });
 
-  it("400 for language=ESC_POS (not implemented in M3)", async () => {
-    const h = await startHarness(VALID_PAIR, [ZEBRA]);
+  it("200 for language=ESC_POS — forwards to dispatchEscpos", async () => {
+    const h = await startHarness(VALID_PAIR, [{ ...ZEBRA, language: "ESC_POS" }]);
     try {
       const r = await fetch(`${h.url}/print`, {
         method: "POST",
         headers: { "Content-Type": "application/json", "X-Bridge-Token": VALID_PAIR.token },
         body: JSON.stringify({ ...VALID_PRINT, language: "ESC_POS" }),
       });
-      expect(r.status).toBe(400);
-      const body = await r.json();
-      expect(body.errorCode).toBe("BAD_PAYLOAD");
-      expect(body.error).toMatch(/ESC_POS/);
+      expect(r.status).toBe(200);
+      expect(h.dispatchEscpos).toHaveBeenCalledOnce();
+      expect(h.dispatchZpl).not.toHaveBeenCalled();
+      expect(h.dispatchPdf).not.toHaveBeenCalled();
     } finally {
       h.server.close();
     }
@@ -362,7 +374,7 @@ describe("POST /test-print", () => {
     }
   });
 
-  it("400 when printer is not ZPL (M3 limitation)", async () => {
+  it("400 when printer is PDF (only ZPL/ESC_POS supported)", async () => {
     const h = await startHarness(VALID_PAIR, [ZEBRA]);
     try {
       const r = await fetch(`${h.url}/test-print`, {
@@ -372,6 +384,30 @@ describe("POST /test-print", () => {
       });
       expect(r.status).toBe(400);
       expect((await r.json()).errorCode).toBe("BAD_PAYLOAD");
+    } finally {
+      h.server.close();
+    }
+  });
+
+  it("200 — dispatches ESC/POS BRIDGE OK sample for receipt printers", async () => {
+    const RECEIPT: LoadedPrinter = { ...ZEBRA, name: "Star-TSP143", language: "ESC_POS" };
+    const h = await startHarness(VALID_PAIR, [RECEIPT]);
+    try {
+      const r = await fetch(`${h.url}/test-print`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-Bridge-Token": VALID_PAIR.token },
+        body: JSON.stringify({ printerName: RECEIPT.name }),
+      });
+      expect(r.status).toBe(200);
+      expect(h.dispatchEscpos).toHaveBeenCalledOnce();
+      const arg = h.dispatchEscpos.mock.calls[0][0];
+      expect(arg.language).toBe("ESC_POS");
+      const bytes = Buffer.from(arg.payloadBase64, "base64");
+      // ESC @ initializer at the front; GS V 1 paper cut at the end
+      expect(bytes[0]).toBe(0x1b);
+      expect(bytes[1]).toBe(0x40);
+      expect(bytes.subarray(-3).equals(Buffer.from([0x1d, 0x56, 0x01]))).toBe(true);
+      expect(bytes.includes(Buffer.from("BRIDGE OK"))).toBe(true);
     } finally {
       h.server.close();
     }

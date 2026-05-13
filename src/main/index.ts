@@ -8,6 +8,7 @@ import { openLogsWindow } from "./logs-window";
 import { refreshPrinters, getCachedPrinters } from "./dispatcher/printers";
 import { dispatchPdf } from "./dispatcher/pdf";
 import { dispatchZpl } from "./dispatcher/zpl";
+import { dispatchEscpos } from "./dispatcher/escpos";
 import { NetworkPrinter } from "../shared/protocol";
 import { openJobsDb } from "./jobs/db";
 import { JobsRepository } from "./jobs/repository";
@@ -138,6 +139,7 @@ app.whenReady().then(() => {
     refreshPrinters,
     dispatchPdf: (req) => dispatchPdf(req),
     dispatchZpl: (req) => dispatchZpl(req),
+    dispatchEscpos: (req) => dispatchEscpos(req),
     jobRecorder,
   });
 

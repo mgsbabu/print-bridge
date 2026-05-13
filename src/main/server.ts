@@ -12,7 +12,7 @@ import {
 import { ErrorCode } from "../shared/error-codes";
 import type { PairingRecord } from "./store";
 import type { PrintResult } from "./dispatcher/pdf";
-import { buildZplSample } from "./test-print-sample";
+import { buildZplSample, buildEscposSample } from "./test-print-sample";
 import type { PrintLanguage } from "../shared/protocol";
 import type { JobStatus } from "./jobs/repository";
 
@@ -33,6 +33,7 @@ export interface ServerDeps {
   refreshPrinters: () => Promise<LoadedPrinter[]>;
   dispatchPdf: (req: PrintRequest) => Promise<PrintResult>;
   dispatchZpl: (req: PrintRequest) => Promise<PrintResult>;
+  dispatchEscpos: (req: PrintRequest) => Promise<PrintResult>;
   jobRecorder?: JobRecorder;
 }
 
@@ -112,6 +113,8 @@ export function createApp(deps: ServerDeps): Express {
       result = await deps.dispatchPdf(body);
     } else if (body.language === "ZPL") {
       result = await deps.dispatchZpl(body);
+    } else if (body.language === "ESC_POS") {
+      result = await deps.dispatchEscpos(body);
     } else {
       const failure = {
         dispatched: false as const,
@@ -139,7 +142,7 @@ export function createApp(deps: ServerDeps): Express {
     try {
       const body = PrintRequest.parse(req.body);
       const result = await recordedDispatch(body);
-      if (body.language !== "PDF" && body.language !== "ZPL") {
+      if (body.language !== "PDF" && body.language !== "ZPL" && body.language !== "ESC_POS") {
         res.status(400).json(result);
         return;
       }
@@ -176,20 +179,23 @@ export function createApp(deps: ServerDeps): Express {
         });
         return;
       }
-      if (target.language !== "ZPL") {
+      if (target.language === "PDF") {
         res.status(400).json({
           dispatched: false,
           copiesAcknowledged: 0,
-          error: `Test print only supports ZPL printers in M3; ${printerName} reports ${target.language}`,
+          error: `Test print only supports ZPL and ESC/POS printers; ${printerName} reports PDF`,
           errorCode: ErrorCode.BAD_PAYLOAD,
         });
         return;
       }
-      const zpl = buildZplSample();
+      const payload =
+        target.language === "ZPL"
+          ? Buffer.from(buildZplSample(), "utf-8")
+          : buildEscposSample();
       const result = await recordedDispatch({
         printerName,
-        language: "ZPL",
-        payloadBase64: Buffer.from(zpl, "utf-8").toString("base64"),
+        language: target.language,
+        payloadBase64: payload.toString("base64"),
         copies: 1,
         jobRef: 0,
       });
