@@ -1,6 +1,42 @@
 const f = document.getElementById("f");
 const btn = document.getElementById("submit");
 const msg = document.getElementById("msg");
+const codeEl = document.getElementById("code");
+const codeStatus = document.getElementById("codeStatus");
+
+function tryDecodeAndFill() {
+  const raw = codeEl.value.trim();
+  if (!raw) {
+    codeStatus.textContent = "";
+    codeStatus.style.color = "#666";
+    return null;
+  }
+  try {
+    const json = JSON.parse(atob(raw));
+    if (
+      typeof json.tenantId === "number" &&
+      typeof json.orgUnitId === "number" &&
+      typeof json.token === "string" &&
+      typeof json.tenantOrigin === "string"
+    ) {
+      f.tenantId.value = json.tenantId;
+      f.orgUnitId.value = json.orgUnitId;
+      f.token.value = json.token;
+      f.tenantOrigin.value = json.tenantOrigin;
+      codeStatus.textContent = `Decoded — tenant ${json.tenantId}, org unit ${json.orgUnitId}, origin ${json.tenantOrigin}`;
+      codeStatus.style.color = "#1b5e20";
+      return json;
+    }
+    codeStatus.textContent = "Code parsed but is missing required fields";
+    codeStatus.style.color = "#b00020";
+  } catch (_) {
+    codeStatus.textContent = "Not a valid pairing code yet";
+    codeStatus.style.color = "#b00020";
+  }
+  return null;
+}
+
+codeEl.addEventListener("input", tryDecodeAndFill);
 
 f.addEventListener("submit", async (e) => {
   e.preventDefault();
@@ -8,6 +44,7 @@ f.addEventListener("submit", async (e) => {
   msg.textContent = "";
   btn.disabled = true;
   try {
+    tryDecodeAndFill();
     const body = {
       tenantId: Number(f.tenantId.value),
       orgUnitId: Number(f.orgUnitId.value),

@@ -26,22 +26,32 @@
 <body>
   <h1>Pair with TailorApp</h1>
   <form id="f">
-    <div class="row">
-      <div>
-        <label for="tenantId">Tenant ID</label>
-        <input id="tenantId" name="tenantId" type="number" min="1" required />
+    <label for="code">Pairing Code</label>
+    <textarea id="code" name="code" rows="3"
+              placeholder="Paste the code from the web app's pairing screen"
+              style="width:100%;box-sizing:border-box;padding:6px 8px;font:inherit;border:1px solid #c4c4c4;border-radius:4px;background:#fff;resize:vertical;"></textarea>
+    <div id="codeStatus" style="margin-top:4px;font-size:11px;color:#666;"></div>
+
+    <details style="margin-top:12px;">
+      <summary style="cursor:pointer;font-weight:500;font-size:12px;">Or enter manually</summary>
+      <div class="row" style="margin-top:8px;">
+        <div>
+          <label for="tenantId">Tenant ID</label>
+          <input id="tenantId" name="tenantId" type="number" min="1" required />
+        </div>
+        <div>
+          <label for="orgUnitId">Org Unit ID</label>
+          <input id="orgUnitId" name="orgUnitId" type="number" min="1" required />
+        </div>
       </div>
-      <div>
-        <label for="orgUnitId">Org Unit ID</label>
-        <input id="orgUnitId" name="orgUnitId" type="number" min="1" required />
-      </div>
-    </div>
-    <label for="tenantOrigin">Tenant Origin</label>
-    <input id="tenantOrigin" name="tenantOrigin" type="url"
-           placeholder="https://app.tailorapp.in" required />
-    <label for="token">Pairing Token</label>
-    <input id="token" name="token" type="text" minlength="32"
-           placeholder="64-character token from the pairing screen" required />
+      <label for="tenantOrigin">Tenant Origin</label>
+      <input id="tenantOrigin" name="tenantOrigin" type="url"
+             placeholder="http://localhost:3000" required />
+      <label for="token">Pairing Token</label>
+      <input id="token" name="token" type="text" minlength="32"
+             placeholder="64-character token" required />
+    </details>
+
     <button type="submit" id="submit">Pair</button>
     <div id="msg"></div>
   </form>
