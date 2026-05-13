@@ -14,14 +14,14 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # Mac runner overrides notarize=true so production DMGs are
-          # notarized; electron-builder.yml keeps notarize=false so
-          # local ./deploy.sh works without Apple creds.
           - os: macos-latest
-            ebargs: "--mac --x64 --arm64 -c.mac.notarize=true"
+            platform: mac
+            ebargs: "--mac --x64 --arm64"
           - os: windows-latest
+            platform: win
             ebargs: "--win"
           - os: ubuntu-latest
+            platform: linux
             ebargs: "--linux"
 
     runs-on: ${{ matrix.os }}
@@ -33,21 +33,53 @@ jobs:
           node-version: "20"
           cache: npm
 
+      # @grandchef/node-printer's binding.gyp uses `cups-config --cflags`
+      # to find CUPS headers on Linux. Ubuntu runners ship without them.
+      - name: Install CUPS dev libs (Linux only)
+        if: matrix.os == 'ubuntu-latest'
+        run: sudo apt-get update && sudo apt-get install -y libcups2-dev
+
       - run: npm ci
 
       - run: npm run build
+
+      # Pass through signing env vars ONLY when the corresponding secrets
+      # are actually set. Passing CSC_LINK="" makes electron-builder
+      # treat the empty string as a file path and explode.
+      - name: Configure signing env from secrets
+        shell: bash
+        env:
+          MAC_CERT_P12_BASE64: ${{ secrets.MAC_CERT_P12_BASE64 }}
+          MAC_CERT_PASSWORD: ${{ secrets.MAC_CERT_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          WIN_CERT_P12_BASE64: ${{ secrets.WIN_CERT_P12_BASE64 }}
+          WIN_CERT_PASSWORD: ${{ secrets.WIN_CERT_PASSWORD }}
+        run: |
+          set -e
+          # Mac signing — only export if cert secret is present
+          if [ -n "$MAC_CERT_P12_BASE64" ]; then
+            echo "CSC_LINK=$MAC_CERT_P12_BASE64" >> "$GITHUB_ENV"
+            echo "CSC_KEY_PASSWORD=$MAC_CERT_PASSWORD" >> "$GITHUB_ENV"
+            echo "MAC_NOTARIZE_FLAG=-c.mac.notarize=true" >> "$GITHUB_ENV"
+          else
+            echo "MAC_NOTARIZE_FLAG=" >> "$GITHUB_ENV"
+          fi
+          # Notarization creds — only export when present
+          if [ -n "$APPLE_ID" ]; then
+            echo "APPLE_ID=$APPLE_ID" >> "$GITHUB_ENV"
+            echo "APPLE_APP_SPECIFIC_PASSWORD=$APPLE_APP_SPECIFIC_PASSWORD" >> "$GITHUB_ENV"
+            echo "APPLE_TEAM_ID=$APPLE_TEAM_ID" >> "$GITHUB_ENV"
+          fi
+          # Windows signing
+          if [ -n "$WIN_CERT_P12_BASE64" ]; then
+            echo "WIN_CSC_LINK=$WIN_CERT_P12_BASE64" >> "$GITHUB_ENV"
+            echo "WIN_CSC_KEY_PASSWORD=$WIN_CERT_PASSWORD" >> "$GITHUB_ENV"
+          fi
 
       - name: Package and publish
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # macOS signing + notarization (leave secrets unset to ship unsigned)
-          CSC_LINK: ${{ secrets.MAC_CERT_P12_BASE64 }}
-          CSC_KEY_PASSWORD: ${{ secrets.MAC_CERT_PASSWORD }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          # Windows signing (leave unset to ship unsigned)
-          WIN_CSC_LINK: ${{ secrets.WIN_CERT_P12_BASE64 }}
-          WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CERT_PASSWORD }}
-        run: npx electron-builder ${{ matrix.ebargs }} --publish always
+        run: npx electron-builder ${{ matrix.ebargs }} ${MAC_NOTARIZE_FLAG:-} --publish always
