@@ -3,18 +3,19 @@ import path from "node:path";
 import { startServer, BRIDGE_PORT } from "./server";
 import { getPairing, setPairing, clearPairing } from "./store";
 import { openPairingWindow } from "./pair-window";
+import { refreshPrinters, getCachedPrinters } from "./dispatcher/printers";
+import { dispatchPdf } from "./dispatcher/pdf";
 import { log } from "./logger";
 
 let tray: Tray | null = null;
+let reloadingPrinters = false;
 
 function buildMenu(): Menu {
   const pairing = getPairing();
+  const printers = getCachedPrinters();
   return Menu.buildFromTemplate([
     pairing
-      ? {
-          label: `Paired with tenant ${pairing.tenantId}`,
-          enabled: false,
-        }
+      ? { label: `Paired with tenant ${pairing.tenantId}`, enabled: false }
       : { label: "Pair with TailorApp", click: () => openPairingWindow() },
     pairing
       ? {
@@ -26,12 +27,34 @@ function buildMenu(): Menu {
         }
       : { label: "Unpair", enabled: false },
     { type: "separator" },
+    {
+      label: reloadingPrinters
+        ? "Reloading printers…"
+        : `Reload Printers (${printers.length} loaded)`,
+      enabled: !reloadingPrinters,
+      click: () => void reloadPrintersAndRefresh(),
+    },
+    { type: "separator" },
     { label: "Quit", click: () => app.quit() },
   ]);
 }
 
 function refreshMenu(): void {
   tray?.setContextMenu(buildMenu());
+}
+
+async function reloadPrintersAndRefresh(): Promise<void> {
+  reloadingPrinters = true;
+  refreshMenu();
+  try {
+    const list = await refreshPrinters();
+    log.info({ count: list.length }, "printers reloaded");
+  } catch (err) {
+    log.error({ err }, "printer enumeration failed");
+  } finally {
+    reloadingPrinters = false;
+    refreshMenu();
+  }
 }
 
 app.whenReady().then(() => {
@@ -57,9 +80,13 @@ app.whenReady().then(() => {
       refreshMenu();
     },
     appVersion: app.getVersion(),
+    listPrinters: getCachedPrinters,
+    refreshPrinters,
+    dispatchPdf: (req) => dispatchPdf(req),
   });
 
   log.info({ port: BRIDGE_PORT }, "bridge listening");
+  void reloadPrintersAndRefresh();
 });
 
 app.on("window-all-closed", () => {

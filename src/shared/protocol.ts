@@ -35,3 +35,29 @@ export const ErrorResponse = z.object({
   errorCode: z.nativeEnum(ErrorCode),
 });
 export type ErrorResponse = z.infer<typeof ErrorResponse>;
+
+export const PrintLanguage = z.enum(["PDF", "ZPL", "ESC_POS"]);
+export type PrintLanguage = z.infer<typeof PrintLanguage>;
+
+export const PrintRequest = z.object({
+  printerName: z.string().min(1),
+  language: PrintLanguage,
+  payloadBase64: z.string().min(1),
+  copies: z.number().int().min(1).max(99),
+  jobRef: z.number().int().nonnegative(),
+});
+export type PrintRequest = z.infer<typeof PrintRequest>;
+
+export const PrintSuccessResponse = z.object({
+  dispatched: z.literal(true),
+  copiesAcknowledged: z.number().int().nonnegative(),
+});
+export type PrintSuccessResponse = z.infer<typeof PrintSuccessResponse>;
+
+export const PrintFailureResponse = z.object({
+  dispatched: z.literal(false),
+  copiesAcknowledged: z.literal(0),
+  error: z.string(),
+  errorCode: z.nativeEnum(ErrorCode),
+});
+export type PrintFailureResponse = z.infer<typeof PrintFailureResponse>;

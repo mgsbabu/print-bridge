@@ -1,17 +1,28 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import type { AddressInfo } from "node:net";
 import http from "node:http";
 import { createApp, type ServerDeps } from "../src/main/server";
 import type { PairingRecord } from "../src/main/store";
+import type { LoadedPrinter, PrintRequest } from "../src/shared/protocol";
+import type { PrintResult } from "../src/main/dispatcher/pdf";
 
 interface Harness {
   url: string;
   server: http.Server;
-  state: { pairing: PairingRecord | null };
+  state: { pairing: PairingRecord | null; printers: LoadedPrinter[] };
+  dispatchPdf: ReturnType<typeof vi.fn<[PrintRequest], Promise<PrintResult>>>;
 }
 
-async function startHarness(initial: PairingRecord | null): Promise<Harness> {
-  const state: { pairing: PairingRecord | null } = { pairing: initial };
+async function startHarness(
+  initial: PairingRecord | null,
+  printers: LoadedPrinter[] = [],
+  dispatchImpl: (req: PrintRequest) => Promise<PrintResult> = async (req) => ({
+    dispatched: true,
+    copiesAcknowledged: req.copies,
+  }),
+): Promise<Harness> {
+  const state = { pairing: initial, printers };
+  const dispatchPdf = vi.fn(dispatchImpl);
   const deps: ServerDeps = {
     getPairing: () => state.pairing,
     setPairing: (p) => {
@@ -19,13 +30,16 @@ async function startHarness(initial: PairingRecord | null): Promise<Harness> {
     },
     appVersion: "0.0.0-test",
     startedAt: Date.now(),
+    listPrinters: () => state.printers,
+    refreshPrinters: async () => state.printers,
+    dispatchPdf,
   };
   const app = createApp(deps);
   const server: http.Server = await new Promise((resolve) => {
     const s = app.listen(0, "127.0.0.1", () => resolve(s));
   });
   const { port } = server.address() as AddressInfo;
-  return { url: `http://127.0.0.1:${port}`, server, state };
+  return { url: `http://127.0.0.1:${port}`, server, state, dispatchPdf };
 }
 
 const VALID_PAIR: PairingRecord = {
@@ -123,6 +137,136 @@ describe("GET /health", () => {
       expect(body.orgUnitId).toBe(VALID_PAIR.orgUnitId);
       expect(body.loadedPrinters).toEqual([]);
       expect(typeof body.uptimeSeconds).toBe("number");
+    } finally {
+      h.server.close();
+    }
+  });
+});
+
+const ZEBRA: LoadedPrinter = {
+  name: "Zebra-ZD220",
+  language: "PDF",
+  mediaWidthMm: null,
+  mediaHeightMm: null,
+  mediaKind: null,
+  isDefault: true,
+  online: true,
+};
+
+const VALID_PRINT: PrintRequest = {
+  printerName: "Zebra-ZD220",
+  language: "PDF",
+  payloadBase64: Buffer.from("%PDF-1.4\n%fake").toString("base64"),
+  copies: 2,
+  jobRef: 482,
+};
+
+describe("GET /printers", () => {
+  it("401 without token", async () => {
+    const h = await startHarness(VALID_PAIR, [ZEBRA]);
+    try {
+      const r = await fetch(`${h.url}/printers`);
+      expect(r.status).toBe(401);
+    } finally {
+      h.server.close();
+    }
+  });
+
+  it("200 with token, returns the cached list", async () => {
+    const h = await startHarness(VALID_PAIR, [ZEBRA]);
+    try {
+      const r = await fetch(`${h.url}/printers`, {
+        headers: { "X-Bridge-Token": VALID_PAIR.token },
+      });
+      expect(r.status).toBe(200);
+      expect(await r.json()).toEqual([ZEBRA]);
+    } finally {
+      h.server.close();
+    }
+  });
+});
+
+describe("POST /print", () => {
+  it("401 without token", async () => {
+    const h = await startHarness(VALID_PAIR, [ZEBRA]);
+    try {
+      const r = await fetch(`${h.url}/print`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(VALID_PRINT),
+      });
+      expect(r.status).toBe(401);
+      expect(h.dispatchPdf).not.toHaveBeenCalled();
+    } finally {
+      h.server.close();
+    }
+  });
+
+  it("200 with PDF + valid token, forwards to dispatchPdf", async () => {
+    const h = await startHarness(VALID_PAIR, [ZEBRA]);
+    try {
+      const r = await fetch(`${h.url}/print`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-Bridge-Token": VALID_PAIR.token },
+        body: JSON.stringify(VALID_PRINT),
+      });
+      expect(r.status).toBe(200);
+      expect(await r.json()).toEqual({ dispatched: true, copiesAcknowledged: 2 });
+      expect(h.dispatchPdf).toHaveBeenCalledOnce();
+      expect(h.dispatchPdf).toHaveBeenCalledWith(VALID_PRINT);
+    } finally {
+      h.server.close();
+    }
+  });
+
+  it("400 with bad body (missing copies)", async () => {
+    const h = await startHarness(VALID_PAIR, [ZEBRA]);
+    try {
+      const { copies: _, ...bad } = VALID_PRINT;
+      const r = await fetch(`${h.url}/print`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-Bridge-Token": VALID_PAIR.token },
+        body: JSON.stringify(bad),
+      });
+      expect(r.status).toBe(400);
+      expect((await r.json()).errorCode).toBe("BAD_PAYLOAD");
+    } finally {
+      h.server.close();
+    }
+  });
+
+  it("400 for language=ZPL (not implemented in M2)", async () => {
+    const h = await startHarness(VALID_PAIR, [ZEBRA]);
+    try {
+      const r = await fetch(`${h.url}/print`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-Bridge-Token": VALID_PAIR.token },
+        body: JSON.stringify({ ...VALID_PRINT, language: "ZPL" }),
+      });
+      expect(r.status).toBe(400);
+      const body = await r.json();
+      expect(body.errorCode).toBe("BAD_PAYLOAD");
+      expect(body.error).toMatch(/ZPL/);
+    } finally {
+      h.server.close();
+    }
+  });
+
+  it("502 when dispatcher reports failure", async () => {
+    const h = await startHarness(VALID_PAIR, [ZEBRA], async () => ({
+      dispatched: false,
+      copiesAcknowledged: 0,
+      error: "Printer offline",
+      errorCode: "PRINTER_OFFLINE" as const,
+    }));
+    try {
+      const r = await fetch(`${h.url}/print`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-Bridge-Token": VALID_PAIR.token },
+        body: JSON.stringify(VALID_PRINT),
+      });
+      expect(r.status).toBe(502);
+      expect((await r.json()).errorCode).toBe("PRINTER_OFFLINE");
     } finally {
       h.server.close();
     }

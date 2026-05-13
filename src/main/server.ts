@@ -1,11 +1,11 @@
 import express, { type Express, type Request, type Response, type NextFunction } from "express";
 import cors from "cors";
 import http from "node:http";
-import os from "node:os";
 import { ZodError } from "zod";
-import { PairRequest, type HealthResponse } from "../shared/protocol";
+import { PairRequest, PrintRequest, type HealthResponse, type LoadedPrinter } from "../shared/protocol";
 import { ErrorCode } from "../shared/error-codes";
 import type { PairingRecord } from "./store";
+import type { PrintResult } from "./dispatcher/pdf";
 
 export const BRIDGE_PORT = 7755;
 export const BRIDGE_HOST = "127.0.0.1";
@@ -15,6 +15,9 @@ export interface ServerDeps {
   setPairing: (p: PairingRecord) => void;
   appVersion: string;
   startedAt?: number;
+  listPrinters: () => LoadedPrinter[];
+  refreshPrinters: () => Promise<LoadedPrinter[]>;
+  dispatchPdf: (req: PrintRequest) => Promise<PrintResult>;
 }
 
 function sendError(res: Response, status: number, code: ErrorCode, message: string): void {
@@ -74,12 +77,49 @@ export function createApp(deps: ServerDeps): Express {
     const body: HealthResponse = {
       version: deps.appVersion,
       os: process.platform,
-      loadedPrinters: [],
+      loadedPrinters: deps.listPrinters(),
       tenantId: pairing?.tenantId ?? null,
       orgUnitId: pairing?.orgUnitId ?? null,
       uptimeSeconds: Math.floor((Date.now() - startedAt) / 1000),
     };
     res.json(body);
+  });
+
+  app.get("/printers", requireAuth, (_req, res) => {
+    res.json(deps.listPrinters());
+  });
+
+  app.post("/print", requireAuth, async (req, res) => {
+    try {
+      const body = PrintRequest.parse(req.body);
+      if (body.language !== "PDF") {
+        res.status(400).json({
+          dispatched: false,
+          copiesAcknowledged: 0,
+          error: `Language ${body.language} not implemented yet`,
+          errorCode: ErrorCode.BAD_PAYLOAD,
+        });
+        return;
+      }
+      const result = await deps.dispatchPdf(body);
+      res.status(result.dispatched ? 200 : 502).json(result);
+    } catch (err) {
+      if (err instanceof ZodError) {
+        res.status(400).json({
+          dispatched: false,
+          copiesAcknowledged: 0,
+          error: err.issues[0]?.message ?? "Invalid print body",
+          errorCode: ErrorCode.BAD_PAYLOAD,
+        });
+        return;
+      }
+      res.status(500).json({
+        dispatched: false,
+        copiesAcknowledged: 0,
+        error: err instanceof Error ? err.message : "internal",
+        errorCode: ErrorCode.INTERNAL,
+      });
+    }
   });
 
   return app;
