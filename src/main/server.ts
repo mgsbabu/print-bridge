@@ -15,6 +15,7 @@ import type { PrintResult } from "./dispatcher/pdf";
 import { buildZplSample, buildEscposSample } from "./test-print-sample";
 import type { PrintLanguage } from "../shared/protocol";
 import type { JobStatus } from "./jobs/repository";
+import type { ErrorRing } from "./error-ring";
 
 export interface JobRecorder {
   start(printer: string, language: PrintLanguage, copiesRequested: number): number;
@@ -35,6 +36,7 @@ export interface ServerDeps {
   dispatchZpl: (req: PrintRequest) => Promise<PrintResult>;
   dispatchEscpos: (req: PrintRequest) => Promise<PrintResult>;
   jobRecorder?: JobRecorder;
+  errorRing?: ErrorRing;
 }
 
 function sendError(res: Response, status: number, code: ErrorCode, message: string): void {
@@ -98,6 +100,7 @@ export function createApp(deps: ServerDeps): Express {
       tenantId: pairing?.tenantId ?? null,
       orgUnitId: pairing?.orgUnitId ?? null,
       uptimeSeconds: Math.floor((Date.now() - startedAt) / 1000),
+      recentErrors: deps.errorRing?.list() ?? [],
     };
     res.json(body);
   });

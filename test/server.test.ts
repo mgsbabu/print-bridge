@@ -5,6 +5,7 @@ import { createApp, type ServerDeps, type JobRecorder } from "../src/main/server
 import type { PairingRecord } from "../src/main/store";
 import type { LoadedPrinter, PrintRequest } from "../src/shared/protocol";
 import type { PrintResult } from "../src/main/dispatcher/pdf";
+import { ErrorRing } from "../src/main/error-ring";
 
 interface Harness {
   url: string;
@@ -17,6 +18,7 @@ interface Harness {
     start: ReturnType<typeof vi.fn>;
     finish: ReturnType<typeof vi.fn>;
   };
+  errorRing: ErrorRing;
 }
 
 const okResult = async (req: PrintRequest): Promise<PrintResult> => ({
@@ -40,6 +42,7 @@ async function startHarness(
     start: vi.fn(() => nextJobId++),
     finish: vi.fn(),
   };
+  const errorRing = new ErrorRing();
   const deps: ServerDeps = {
     getPairing: () => state.pairing,
     setPairing: (p) => {
@@ -53,6 +56,7 @@ async function startHarness(
     dispatchZpl,
     dispatchEscpos,
     jobRecorder,
+    errorRing,
   };
   const app = createApp(deps);
   const server: http.Server = await new Promise((resolve) => {
@@ -67,6 +71,7 @@ async function startHarness(
     dispatchZpl,
     dispatchEscpos,
     jobRecorder,
+    errorRing,
   };
 }
 
@@ -152,8 +157,9 @@ describe("GET /health", () => {
     }
   });
 
-  it("200 with valid token", async () => {
+  it("200 with valid token, surfaces recentErrors from the ring", async () => {
     const h = await startHarness(VALID_PAIR);
+    h.errorRing.record(new Error("nightmare driver"), "PRINTER_OFFLINE");
     try {
       const r = await fetch(`${h.url}/health`, {
         headers: { "X-Bridge-Token": VALID_PAIR.token },
@@ -165,6 +171,9 @@ describe("GET /health", () => {
       expect(body.orgUnitId).toBe(VALID_PAIR.orgUnitId);
       expect(body.loadedPrinters).toEqual([]);
       expect(typeof body.uptimeSeconds).toBe("number");
+      expect(body.recentErrors).toEqual([
+        { ts: expect.any(Number), msg: "nightmare driver", code: "PRINTER_OFFLINE" },
+      ]);
     } finally {
       h.server.close();
     }

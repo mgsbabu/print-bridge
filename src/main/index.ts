@@ -1,7 +1,7 @@
 import { app, Menu, Tray, Notification, nativeImage, ipcMain } from "electron";
 import path from "node:path";
 import { startServer, BRIDGE_PORT, type JobRecorder } from "./server";
-import { getPairing, setPairing, clearPairing, addNetworkPrinter } from "./store";
+import { getPairing, setPairing, clearPairing, addNetworkPrinter, type PairingRecord } from "./store";
 import { openPairingWindow } from "./pair-window";
 import { openNetworkPrinterWindow } from "./network-printer-window";
 import { openLogsWindow } from "./logs-window";
@@ -13,7 +13,12 @@ import { NetworkPrinter } from "../shared/protocol";
 import { openJobsDb } from "./jobs/db";
 import { JobsRepository } from "./jobs/repository";
 import { startAutoUpdate } from "./updater";
+import { ErrorRing } from "./error-ring";
+import { HttpSupervisor } from "./supervisor";
+import { initTelemetry } from "./telemetry";
 import { log } from "./logger";
+
+initTelemetry();
 
 const IDLE_WINDOW_MS = 2 * 60_000;
 
@@ -23,6 +28,7 @@ const STATUS_REFRESH_MS = 30_000;
 let tray: Tray | null = null;
 let reloadingPrinters = false;
 let jobsRepo: JobsRepository | null = null;
+const errorRing = new ErrorRing();
 
 function statusLabel(): string {
   if (!jobsRepo) return "Initializing…";
@@ -121,9 +127,9 @@ app.whenReady().then(() => {
     finish: (id, copies, status, error) => jobsRepo?.updateJobResult(id, copies, status, error),
   };
 
-  startServer({
+  const serverDeps = {
     getPairing,
-    setPairing: (p) => {
+    setPairing: (p: PairingRecord) => {
       const wasUnpaired = getPairing() === null;
       setPairing(p);
       refreshMenu();
@@ -137,13 +143,22 @@ app.whenReady().then(() => {
     appVersion: app.getVersion(),
     listPrinters: getCachedPrinters,
     refreshPrinters,
-    dispatchPdf: (req) => dispatchPdf(req),
-    dispatchZpl: (req) => dispatchZpl(req),
-    dispatchEscpos: (req) => dispatchEscpos(req),
+    dispatchPdf,
+    dispatchZpl,
+    dispatchEscpos,
     jobRecorder,
+    errorRing,
+  };
+
+  const supervisor = new HttpSupervisor({
+    start: () => startServer(serverDeps),
+    errorRing,
   });
 
-  log.info({ port: BRIDGE_PORT }, "bridge listening");
+  process.on("uncaughtException", (err) => supervisor.handleCrash(err, "UNCAUGHT"));
+  process.on("unhandledRejection", (err) => supervisor.handleCrash(err, "UNHANDLED_REJECTION"));
+
+  log.info({ port: BRIDGE_PORT, server: supervisor.server().address() }, "bridge listening");
   void reloadPrintersAndRefresh();
   setInterval(refreshMenu, STATUS_REFRESH_MS);
 

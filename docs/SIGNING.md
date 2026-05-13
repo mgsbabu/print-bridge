@@ -122,3 +122,49 @@ upgrade. The procedure:
 
 If anything is unsigned / un-notarized, the auto-update will silently
 fail on macOS (the OS refuses to launch the new `.app`). Check Console.app for `RBSAssertionDescription` errors during the restart.
+
+## Telemetry (opt-in Sentry)
+
+The bridge ships with a Sentry hook that **does nothing unless the
+`SENTRY_DSN` env var is set at build time**. No DSN ⇒ no init ⇒
+zero network calls to Sentry.
+
+When enabled, both `beforeBreadcrumb` and `beforeSend` run every
+event through `scrub()`:
+
+- Any key matching `payloadBase64` / `^token$` / `tokenEnc` /
+  `x-bridge-token` / `bridgeToken` / `Authorization` / `Cookie`
+  is replaced with `[REDACTED]`.
+- Any free-form string > 256 chars that looks like base64 is replaced
+  with `[BASE64 REDACTED]` (catches payload bytes that leak into
+  error messages).
+
+Neither the print payload nor the bridge token can leave the box.
+
+### How "baked at build" works
+
+`process.env.SENTRY_DSN` is read at runtime, but the env var doesn't
+survive into the packaged `.app` — the user's shell isn't the bridge's
+shell. To bake the DSN in for production:
+
+**Option 1 — electron-builder extraMetadata.** Add to `release.yml`:
+
+```yaml
+- run: npx electron-builder ${{ matrix.ebargs }} --publish always
+  env:
+    SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
+  # The .env-style approach: write a tiny module before build.
+```
+
+**Option 2 — pre-build env file.** Write `src/main/sentry-dsn.ts`
+during CI, gitignored:
+
+```bash
+echo "process.env.SENTRY_DSN = '${{ secrets.SENTRY_DSN }}';" \
+  > src/main/sentry-dsn.ts
+```
+
+Then import it at the top of `src/main/index.ts`. The generated file
+sets `process.env.SENTRY_DSN` before `initTelemetry()` runs.
+
+Local dev: don't set the DSN. The hook stays dormant.

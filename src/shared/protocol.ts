@@ -20,6 +20,13 @@ export const LoadedPrinter = z.object({
 });
 export type LoadedPrinter = z.infer<typeof LoadedPrinter>;
 
+export const HealthError = z.object({
+  ts: z.number(),
+  msg: z.string(),
+  code: z.string().optional(),
+});
+export type HealthError = z.infer<typeof HealthError>;
+
 export const HealthResponse = z.object({
   version: z.string(),
   os: z.string(),
@@ -27,6 +34,7 @@ export const HealthResponse = z.object({
   tenantId: z.number().nullable(),
   orgUnitId: z.number().nullable(),
   uptimeSeconds: z.number(),
+  recentErrors: z.array(HealthError).optional(),
 });
 export type HealthResponse = z.infer<typeof HealthResponse>;
 
