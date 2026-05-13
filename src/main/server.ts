@@ -2,10 +2,17 @@ import express, { type Express, type Request, type Response, type NextFunction }
 import cors from "cors";
 import http from "node:http";
 import { ZodError } from "zod";
-import { PairRequest, PrintRequest, type HealthResponse, type LoadedPrinter } from "../shared/protocol";
+import {
+  PairRequest,
+  PrintRequest,
+  TestPrintRequest,
+  type HealthResponse,
+  type LoadedPrinter,
+} from "../shared/protocol";
 import { ErrorCode } from "../shared/error-codes";
 import type { PairingRecord } from "./store";
 import type { PrintResult } from "./dispatcher/pdf";
+import { buildZplSample } from "./test-print-sample";
 
 export const BRIDGE_PORT = 7755;
 export const BRIDGE_HOST = "127.0.0.1";
@@ -18,6 +25,7 @@ export interface ServerDeps {
   listPrinters: () => LoadedPrinter[];
   refreshPrinters: () => Promise<LoadedPrinter[]>;
   dispatchPdf: (req: PrintRequest) => Promise<PrintResult>;
+  dispatchZpl: (req: PrintRequest) => Promise<PrintResult>;
 }
 
 function sendError(res: Response, status: number, code: ErrorCode, message: string): void {
@@ -92,7 +100,12 @@ export function createApp(deps: ServerDeps): Express {
   app.post("/print", requireAuth, async (req, res) => {
     try {
       const body = PrintRequest.parse(req.body);
-      if (body.language !== "PDF") {
+      let result: PrintResult;
+      if (body.language === "PDF") {
+        result = await deps.dispatchPdf(body);
+      } else if (body.language === "ZPL") {
+        result = await deps.dispatchZpl(body);
+      } else {
         res.status(400).json({
           dispatched: false,
           copiesAcknowledged: 0,
@@ -101,7 +114,6 @@ export function createApp(deps: ServerDeps): Express {
         });
         return;
       }
-      const result = await deps.dispatchPdf(body);
       res.status(result.dispatched ? 200 : 502).json(result);
     } catch (err) {
       if (err instanceof ZodError) {
@@ -109,6 +121,56 @@ export function createApp(deps: ServerDeps): Express {
           dispatched: false,
           copiesAcknowledged: 0,
           error: err.issues[0]?.message ?? "Invalid print body",
+          errorCode: ErrorCode.BAD_PAYLOAD,
+        });
+        return;
+      }
+      res.status(500).json({
+        dispatched: false,
+        copiesAcknowledged: 0,
+        error: err instanceof Error ? err.message : "internal",
+        errorCode: ErrorCode.INTERNAL,
+      });
+    }
+  });
+
+  app.post("/test-print", requireAuth, async (req, res) => {
+    try {
+      const { printerName } = TestPrintRequest.parse(req.body);
+      const target = deps.listPrinters().find((p) => p.name === printerName);
+      if (!target) {
+        res.status(404).json({
+          dispatched: false,
+          copiesAcknowledged: 0,
+          error: `Printer ${printerName} not registered`,
+          errorCode: ErrorCode.PRINTER_NOT_FOUND,
+        });
+        return;
+      }
+      if (target.language !== "ZPL") {
+        res.status(400).json({
+          dispatched: false,
+          copiesAcknowledged: 0,
+          error: `Test print only supports ZPL printers in M3; ${printerName} reports ${target.language}`,
+          errorCode: ErrorCode.BAD_PAYLOAD,
+        });
+        return;
+      }
+      const zpl = buildZplSample();
+      const result = await deps.dispatchZpl({
+        printerName,
+        language: "ZPL",
+        payloadBase64: Buffer.from(zpl, "utf-8").toString("base64"),
+        copies: 1,
+        jobRef: 0,
+      });
+      res.status(result.dispatched ? 200 : 502).json(result);
+    } catch (err) {
+      if (err instanceof ZodError) {
+        res.status(400).json({
+          dispatched: false,
+          copiesAcknowledged: 0,
+          error: err.issues[0]?.message ?? "Invalid test-print body",
           errorCode: ErrorCode.BAD_PAYLOAD,
         });
         return;

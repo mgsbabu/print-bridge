@@ -20,6 +20,7 @@
 	},
 	"dependencies": {
 		"@grandchef/node-printer": "^0.8.0",
+		"@mapbox/node-pre-gyp": "^2.0.3",
 		"better-sqlite3": "^11.3.0",
 		"cors": "^2.8.5",
 		"electron-store": "^8.2.0",

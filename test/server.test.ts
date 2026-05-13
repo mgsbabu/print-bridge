@@ -11,18 +11,23 @@ interface Harness {
   server: http.Server;
   state: { pairing: PairingRecord | null; printers: LoadedPrinter[] };
   dispatchPdf: ReturnType<typeof vi.fn<[PrintRequest], Promise<PrintResult>>>;
+  dispatchZpl: ReturnType<typeof vi.fn<[PrintRequest], Promise<PrintResult>>>;
 }
+
+const okResult = async (req: PrintRequest): Promise<PrintResult> => ({
+  dispatched: true,
+  copiesAcknowledged: req.copies,
+});
 
 async function startHarness(
   initial: PairingRecord | null,
   printers: LoadedPrinter[] = [],
-  dispatchImpl: (req: PrintRequest) => Promise<PrintResult> = async (req) => ({
-    dispatched: true,
-    copiesAcknowledged: req.copies,
-  }),
+  dispatchImpl: (req: PrintRequest) => Promise<PrintResult> = okResult,
+  zplImpl: (req: PrintRequest) => Promise<PrintResult> = okResult,
 ): Promise<Harness> {
   const state = { pairing: initial, printers };
   const dispatchPdf = vi.fn(dispatchImpl);
+  const dispatchZpl = vi.fn(zplImpl);
   const deps: ServerDeps = {
     getPairing: () => state.pairing,
     setPairing: (p) => {
@@ -33,13 +38,14 @@ async function startHarness(
     listPrinters: () => state.printers,
     refreshPrinters: async () => state.printers,
     dispatchPdf,
+    dispatchZpl,
   };
   const app = createApp(deps);
   const server: http.Server = await new Promise((resolve) => {
     const s = app.listen(0, "127.0.0.1", () => resolve(s));
   });
   const { port } = server.address() as AddressInfo;
-  return { url: `http://127.0.0.1:${port}`, server, state, dispatchPdf };
+  return { url: `http://127.0.0.1:${port}`, server, state, dispatchPdf, dispatchZpl };
 }
 
 const VALID_PAIR: PairingRecord = {
@@ -235,18 +241,34 @@ describe("POST /print", () => {
     }
   });
 
-  it("400 for language=ZPL (not implemented in M2)", async () => {
-    const h = await startHarness(VALID_PAIR, [ZEBRA]);
+  it("200 for language=ZPL — forwards to dispatchZpl", async () => {
+    const h = await startHarness(VALID_PAIR, [{ ...ZEBRA, language: "ZPL" }]);
     try {
       const r = await fetch(`${h.url}/print`, {
         method: "POST",
         headers: { "Content-Type": "application/json", "X-Bridge-Token": VALID_PAIR.token },
         body: JSON.stringify({ ...VALID_PRINT, language: "ZPL" }),
       });
+      expect(r.status).toBe(200);
+      expect(h.dispatchZpl).toHaveBeenCalledOnce();
+      expect(h.dispatchPdf).not.toHaveBeenCalled();
+    } finally {
+      h.server.close();
+    }
+  });
+
+  it("400 for language=ESC_POS (not implemented in M3)", async () => {
+    const h = await startHarness(VALID_PAIR, [ZEBRA]);
+    try {
+      const r = await fetch(`${h.url}/print`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-Bridge-Token": VALID_PAIR.token },
+        body: JSON.stringify({ ...VALID_PRINT, language: "ESC_POS" }),
+      });
       expect(r.status).toBe(400);
       const body = await r.json();
       expect(body.errorCode).toBe("BAD_PAYLOAD");
-      expect(body.error).toMatch(/ZPL/);
+      expect(body.error).toMatch(/ESC_POS/);
     } finally {
       h.server.close();
     }
@@ -267,6 +289,76 @@ describe("POST /print", () => {
       });
       expect(r.status).toBe(502);
       expect((await r.json()).errorCode).toBe("PRINTER_OFFLINE");
+    } finally {
+      h.server.close();
+    }
+  });
+});
+
+describe("POST /test-print", () => {
+  const ZPL_PRINTER: LoadedPrinter = { ...ZEBRA, language: "ZPL" };
+
+  it("401 without token", async () => {
+    const h = await startHarness(VALID_PAIR, [ZPL_PRINTER]);
+    try {
+      const r = await fetch(`${h.url}/test-print`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ printerName: ZPL_PRINTER.name }),
+      });
+      expect(r.status).toBe(401);
+    } finally {
+      h.server.close();
+    }
+  });
+
+  it("200 — dispatches a ZPL BRIDGE OK sample to the named printer", async () => {
+    const h = await startHarness(VALID_PAIR, [ZPL_PRINTER]);
+    try {
+      const r = await fetch(`${h.url}/test-print`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-Bridge-Token": VALID_PAIR.token },
+        body: JSON.stringify({ printerName: ZPL_PRINTER.name }),
+      });
+      expect(r.status).toBe(200);
+      expect(h.dispatchZpl).toHaveBeenCalledOnce();
+      const arg = h.dispatchZpl.mock.calls[0][0];
+      expect(arg.printerName).toBe(ZPL_PRINTER.name);
+      expect(arg.language).toBe("ZPL");
+      const decoded = Buffer.from(arg.payloadBase64, "base64").toString("utf-8");
+      expect(decoded).toContain("BRIDGE OK");
+      expect(decoded).toContain("^XA");
+      expect(decoded).toContain("^XZ");
+    } finally {
+      h.server.close();
+    }
+  });
+
+  it("404 when printer is unknown", async () => {
+    const h = await startHarness(VALID_PAIR, []);
+    try {
+      const r = await fetch(`${h.url}/test-print`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-Bridge-Token": VALID_PAIR.token },
+        body: JSON.stringify({ printerName: "ghost" }),
+      });
+      expect(r.status).toBe(404);
+      expect((await r.json()).errorCode).toBe("PRINTER_NOT_FOUND");
+    } finally {
+      h.server.close();
+    }
+  });
+
+  it("400 when printer is not ZPL (M3 limitation)", async () => {
+    const h = await startHarness(VALID_PAIR, [ZEBRA]);
+    try {
+      const r = await fetch(`${h.url}/test-print`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-Bridge-Token": VALID_PAIR.token },
+        body: JSON.stringify({ printerName: ZEBRA.name }),
+      });
+      expect(r.status).toBe(400);
+      expect((await r.json()).errorCode).toBe("BAD_PAYLOAD");
     } finally {
       h.server.close();
     }

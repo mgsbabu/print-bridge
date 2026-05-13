@@ -61,3 +61,19 @@ export const PrintFailureResponse = z.object({
   errorCode: z.nativeEnum(ErrorCode),
 });
 export type PrintFailureResponse = z.infer<typeof PrintFailureResponse>;
+
+export const TestPrintRequest = z.object({
+  printerName: z.string().min(1),
+});
+export type TestPrintRequest = z.infer<typeof TestPrintRequest>;
+
+export const NetworkPrinter = z.object({
+  name: z.string().min(1),
+  ip: z.string().min(1),
+  port: z.number().int().min(1).max(65535),
+  language: PrintLanguage,
+  mediaWidthMm: z.number().nullable(),
+  mediaHeightMm: z.number().nullable(),
+  mediaKind: z.string().nullable(),
+});
+export type NetworkPrinter = z.infer<typeof NetworkPrinter>;

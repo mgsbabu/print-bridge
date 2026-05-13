@@ -1,5 +1,6 @@
 import Store from "electron-store";
 import { safeStorage } from "electron";
+import type { NetworkPrinter } from "../shared/protocol";
 
 export interface PairingRecord {
   tenantId: number;
@@ -15,6 +16,7 @@ interface PersistedShape {
     tokenEnc: string;
     tenantOrigin: string;
   };
+  networkPrinters?: NetworkPrinter[];
 }
 
 const store = new Store<PersistedShape>({ name: "bridge" });
@@ -43,4 +45,20 @@ export function setPairing(p: PairingRecord): void {
 
 export function clearPairing(): void {
   store.delete("pairing");
+}
+
+export function getNetworkPrinters(): NetworkPrinter[] {
+  return store.get("networkPrinters") ?? [];
+}
+
+export function addNetworkPrinter(p: NetworkPrinter): void {
+  const existing = getNetworkPrinters().filter((x) => x.name !== p.name);
+  store.set("networkPrinters", [...existing, p]);
+}
+
+export function removeNetworkPrinter(name: string): void {
+  store.set(
+    "networkPrinters",
+    getNetworkPrinters().filter((x) => x.name !== name),
+  );
 }

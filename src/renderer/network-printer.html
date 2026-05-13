@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Add Network Printer</title>
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'unsafe-inline'" />
+  <style>
+    body { font: 13px -apple-system, system-ui, sans-serif; margin: 0; padding: 20px;
+           color: #222; background: #f6f6f6; }
+    h1 { font-size: 16px; margin: 0 0 14px; }
+    label { display: block; margin: 10px 0 4px; font-weight: 500; }
+    input, select { width: 100%; box-sizing: border-box; padding: 6px 8px; font: inherit;
+            border: 1px solid #c4c4c4; border-radius: 4px; background: #fff; }
+    .row { display: flex; gap: 10px; }
+    .row > div { flex: 1; }
+    button { margin-top: 16px; padding: 8px 16px; font: inherit; font-weight: 500;
+             background: #0a84ff; color: #fff; border: 0; border-radius: 5px; cursor: pointer; }
+    button:disabled { background: #999; cursor: progress; }
+    .msg { margin-top: 14px; padding: 8px 10px; border-radius: 4px; font-size: 12px; }
+    .err { background: #ffe4e1; color: #b00020; }
+    .ok  { background: #e0f5e0; color: #1b5e20; }
+  </style>
+</head>
+<body>
+  <h1>Add Network Printer</h1>
+  <form id="f">
+    <label for="name">Display name</label>
+    <input id="name" name="name" type="text" placeholder="Zebra-ZD220-counter1" required />
+
+    <div class="row">
+      <div>
+        <label for="ip">IP address</label>
+        <input id="ip" name="ip" type="text" placeholder="192.168.1.30" required />
+      </div>
+      <div>
+        <label for="port">Port</label>
+        <input id="port" name="port" type="number" min="1" max="65535" value="9100" required />
+      </div>
+    </div>
+
+    <label for="language">Language</label>
+    <select id="language" name="language">
+      <option value="ZPL" selected>ZPL</option>
+      <option value="PDF">PDF</option>
+      <option value="ESC_POS">ESC/POS</option>
+    </select>
+
+    <div class="row">
+      <div>
+        <label for="mediaWidthMm">Media width (mm)</label>
+        <input id="mediaWidthMm" name="mediaWidthMm" type="number" min="1" placeholder="50" />
+      </div>
+      <div>
+        <label for="mediaHeightMm">Height (mm)</label>
+        <input id="mediaHeightMm" name="mediaHeightMm" type="number" min="1" placeholder="15" />
+      </div>
+    </div>
+
+    <label for="mediaKind">Media kind</label>
+    <input id="mediaKind" name="mediaKind" type="text" placeholder="WASHABLE" />
+
+    <button type="submit" id="submit">Add Printer</button>
+    <div id="msg"></div>
+  </form>
+  <script src="./network-printer.js"></script>
+</body>
+</html>
