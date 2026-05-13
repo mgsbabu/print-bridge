@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Print Bridge — Recent Jobs</title>
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'unsafe-inline'" />
+  <style>
+    body { font: 13px -apple-system, system-ui, sans-serif; margin: 0; padding: 16px;
+           color: #222; background: #f6f6f6; }
+    h1 { font-size: 16px; margin: 0 0 12px; display: flex; align-items: center;
+         justify-content: space-between; }
+    .meta { font-size: 11px; color: #666; font-weight: normal; }
+    table { width: 100%; border-collapse: collapse; background: #fff;
+            border: 1px solid #ddd; border-radius: 6px; overflow: hidden; }
+    th, td { padding: 6px 10px; text-align: left; font-size: 12px;
+             border-bottom: 1px solid #eee; }
+    th { background: #f0f0f0; font-weight: 600; }
+    tr:last-child td { border-bottom: 0; }
+    .status-DISPATCHED { color: #1b5e20; font-weight: 500; }
+    .status-FAILED     { color: #b00020; font-weight: 500; }
+    .status-QUEUED     { color: #777; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+    .empty { padding: 40px; text-align: center; color: #777; }
+    .err { color: #b00020; font-size: 11px; max-width: 280px;
+           white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  </style>
+</head>
+<body>
+  <h1>
+    <span>Recent print jobs</span>
+    <span class="meta" id="meta">loading…</span>
+  </h1>
+  <table>
+    <thead>
+      <tr>
+        <th>Time</th>
+        <th>Printer</th>
+        <th>Language</th>
+        <th>Copies</th>
+        <th>Status</th>
+        <th>Error</th>
+      </tr>
+    </thead>
+    <tbody id="rows">
+      <tr><td colspan="6" class="empty">Loading…</td></tr>
+    </tbody>
+  </table>
+  <script src="./logs.js"></script>
+</body>
+</html>

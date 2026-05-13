@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import type { AddressInfo } from "node:net";
 import http from "node:http";
-import { createApp, type ServerDeps } from "../src/main/server";
+import { createApp, type ServerDeps, type JobRecorder } from "../src/main/server";
 import type { PairingRecord } from "../src/main/store";
 import type { LoadedPrinter, PrintRequest } from "../src/shared/protocol";
 import type { PrintResult } from "../src/main/dispatcher/pdf";
@@ -12,6 +12,10 @@ interface Harness {
   state: { pairing: PairingRecord | null; printers: LoadedPrinter[] };
   dispatchPdf: ReturnType<typeof vi.fn<[PrintRequest], Promise<PrintResult>>>;
   dispatchZpl: ReturnType<typeof vi.fn<[PrintRequest], Promise<PrintResult>>>;
+  jobRecorder: JobRecorder & {
+    start: ReturnType<typeof vi.fn>;
+    finish: ReturnType<typeof vi.fn>;
+  };
 }
 
 const okResult = async (req: PrintRequest): Promise<PrintResult> => ({
@@ -28,6 +32,11 @@ async function startHarness(
   const state = { pairing: initial, printers };
   const dispatchPdf = vi.fn(dispatchImpl);
   const dispatchZpl = vi.fn(zplImpl);
+  let nextJobId = 1;
+  const jobRecorder = {
+    start: vi.fn(() => nextJobId++),
+    finish: vi.fn(),
+  };
   const deps: ServerDeps = {
     getPairing: () => state.pairing,
     setPairing: (p) => {
@@ -39,13 +48,14 @@ async function startHarness(
     refreshPrinters: async () => state.printers,
     dispatchPdf,
     dispatchZpl,
+    jobRecorder,
   };
   const app = createApp(deps);
   const server: http.Server = await new Promise((resolve) => {
     const s = app.listen(0, "127.0.0.1", () => resolve(s));
   });
   const { port } = server.address() as AddressInfo;
-  return { url: `http://127.0.0.1:${port}`, server, state, dispatchPdf, dispatchZpl };
+  return { url: `http://127.0.0.1:${port}`, server, state, dispatchPdf, dispatchZpl, jobRecorder };
 }
 
 const VALID_PAIR: PairingRecord = {
@@ -208,7 +218,7 @@ describe("POST /print", () => {
     }
   });
 
-  it("200 with PDF + valid token, forwards to dispatchPdf", async () => {
+  it("200 with PDF + valid token, forwards to dispatchPdf and records job before/after", async () => {
     const h = await startHarness(VALID_PAIR, [ZEBRA]);
     try {
       const r = await fetch(`${h.url}/print`, {
@@ -220,6 +230,8 @@ describe("POST /print", () => {
       expect(await r.json()).toEqual({ dispatched: true, copiesAcknowledged: 2 });
       expect(h.dispatchPdf).toHaveBeenCalledOnce();
       expect(h.dispatchPdf).toHaveBeenCalledWith(VALID_PRINT);
+      expect(h.jobRecorder.start).toHaveBeenCalledWith("Zebra-ZD220", "PDF", 2);
+      expect(h.jobRecorder.finish).toHaveBeenCalledWith(1, 2, "DISPATCHED", null);
     } finally {
       h.server.close();
     }
@@ -274,7 +286,7 @@ describe("POST /print", () => {
     }
   });
 
-  it("502 when dispatcher reports failure", async () => {
+  it("502 when dispatcher reports failure — records FAILED with error text", async () => {
     const h = await startHarness(VALID_PAIR, [ZEBRA], async () => ({
       dispatched: false,
       copiesAcknowledged: 0,
@@ -289,6 +301,7 @@ describe("POST /print", () => {
       });
       expect(r.status).toBe(502);
       expect((await r.json()).errorCode).toBe("PRINTER_OFFLINE");
+      expect(h.jobRecorder.finish).toHaveBeenCalledWith(1, 0, "FAILED", "Printer offline");
     } finally {
       h.server.close();
     }

@@ -13,6 +13,13 @@ import { ErrorCode } from "../shared/error-codes";
 import type { PairingRecord } from "./store";
 import type { PrintResult } from "./dispatcher/pdf";
 import { buildZplSample } from "./test-print-sample";
+import type { PrintLanguage } from "../shared/protocol";
+import type { JobStatus } from "./jobs/repository";
+
+export interface JobRecorder {
+  start(printer: string, language: PrintLanguage, copiesRequested: number): number;
+  finish(id: number, copiesAcknowledged: number, status: JobStatus, error: string | null): void;
+}
 
 export const BRIDGE_PORT = 7755;
 export const BRIDGE_HOST = "127.0.0.1";
@@ -26,6 +33,7 @@ export interface ServerDeps {
   refreshPrinters: () => Promise<LoadedPrinter[]>;
   dispatchPdf: (req: PrintRequest) => Promise<PrintResult>;
   dispatchZpl: (req: PrintRequest) => Promise<PrintResult>;
+  jobRecorder?: JobRecorder;
 }
 
 function sendError(res: Response, status: number, code: ErrorCode, message: string): void {
@@ -97,21 +105,42 @@ export function createApp(deps: ServerDeps): Express {
     res.json(deps.listPrinters());
   });
 
+  async function recordedDispatch(body: PrintRequest): Promise<PrintResult> {
+    const jobId = deps.jobRecorder?.start(body.printerName, body.language, body.copies);
+    let result: PrintResult;
+    if (body.language === "PDF") {
+      result = await deps.dispatchPdf(body);
+    } else if (body.language === "ZPL") {
+      result = await deps.dispatchZpl(body);
+    } else {
+      const failure = {
+        dispatched: false as const,
+        copiesAcknowledged: 0 as const,
+        error: `Language ${body.language} not implemented yet`,
+        errorCode: ErrorCode.BAD_PAYLOAD,
+      };
+      if (jobId !== undefined) {
+        deps.jobRecorder?.finish(jobId, 0, "FAILED", failure.error);
+      }
+      return failure;
+    }
+    if (jobId !== undefined) {
+      deps.jobRecorder?.finish(
+        jobId,
+        result.copiesAcknowledged,
+        result.dispatched ? "DISPATCHED" : "FAILED",
+        result.dispatched ? null : result.error,
+      );
+    }
+    return result;
+  }
+
   app.post("/print", requireAuth, async (req, res) => {
     try {
       const body = PrintRequest.parse(req.body);
-      let result: PrintResult;
-      if (body.language === "PDF") {
-        result = await deps.dispatchPdf(body);
-      } else if (body.language === "ZPL") {
-        result = await deps.dispatchZpl(body);
-      } else {
-        res.status(400).json({
-          dispatched: false,
-          copiesAcknowledged: 0,
-          error: `Language ${body.language} not implemented yet`,
-          errorCode: ErrorCode.BAD_PAYLOAD,
-        });
+      const result = await recordedDispatch(body);
+      if (body.language !== "PDF" && body.language !== "ZPL") {
+        res.status(400).json(result);
         return;
       }
       res.status(result.dispatched ? 200 : 502).json(result);
@@ -157,7 +186,7 @@ export function createApp(deps: ServerDeps): Express {
         return;
       }
       const zpl = buildZplSample();
-      const result = await deps.dispatchZpl({
+      const result = await recordedDispatch({
         printerName,
         language: "ZPL",
         payloadBase64: Buffer.from(zpl, "utf-8").toString("base64"),
