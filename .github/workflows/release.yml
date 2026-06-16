@@ -36,7 +36,11 @@ jobs:
         run: |
           set -e
           mac='{"os":"macos-latest","platform":"mac","ebargs":"--mac --x64 --arm64"}'
-          win='{"os":"windows-latest","platform":"win","ebargs":"--win"}'
+          # Pinned to windows-2022 (not windows-latest). The newer
+          # windows-2025 image breaks node-gyp's Visual Studio detection
+          # when @electron/rebuild compiles the native @grandchef/node-printer
+          # module ("Could not find any Visual Studio installation to use").
+          win='{"os":"windows-2022","platform":"win","ebargs":"--win"}'
           linux='{"os":"ubuntu-latest","platform":"linux","ebargs":"--linux"}'
           sel="all"
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
