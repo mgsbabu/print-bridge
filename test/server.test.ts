@@ -412,10 +412,14 @@ describe("POST /test-print", () => {
       const arg = h.dispatchEscpos.mock.calls[0][0];
       expect(arg.language).toBe("ESC_POS");
       const bytes = Buffer.from(arg.payloadBase64, "base64");
-      // ESC @ initializer at the front; GS V 1 paper cut at the end
+      // ESC @ initializer at the front.
       expect(bytes[0]).toBe(0x1b);
       expect(bytes[1]).toBe(0x40);
-      expect(bytes.subarray(-3).equals(Buffer.from([0x1d, 0x56, 0x01]))).toBe(true);
+      // Default test sample feeds-to-tear and does NOT cut — the pilot
+      // TM-T82X has no cutter, so GS V (1d 56) must be absent.
+      expect(bytes.includes(Buffer.from([0x1d, 0x56]))).toBe(false);
+      // Ends with a run of line feeds (feed-to-tear).
+      expect(bytes[bytes.length - 1]).toBe(0x0a);
       expect(bytes.includes(Buffer.from("BRIDGE OK"))).toBe(true);
     } finally {
       h.server.close();

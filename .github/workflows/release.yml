@@ -4,25 +4,57 @@ on:
   push:
     tags:
       - "v*"
+  # On-demand validation build. Produces an installer as a downloadable
+  # workflow artifact WITHOUT publishing a GitHub Release — useful for
+  # smoke-testing a Windows build before cutting a real `v*` tag.
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: "Platform to build (validation only; artifact, no publish)"
+        type: choice
+        default: win
+        options:
+          - win
+          - mac
+          - linux
+          - all
 
 permissions:
   contents: write
 
 jobs:
+  # Build the matrix dynamically so a workflow_dispatch run only spins up the
+  # chosen platform. (A job-level `if` can't read the `matrix` context, so the
+  # selection has to happen before the matrix is expanded.)
+  setup:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.pick.outputs.matrix }}
+    steps:
+      - id: pick
+        shell: bash
+        run: |
+          set -e
+          mac='{"os":"macos-latest","platform":"mac","ebargs":"--mac --x64 --arm64"}'
+          win='{"os":"windows-latest","platform":"win","ebargs":"--win"}'
+          linux='{"os":"ubuntu-latest","platform":"linux","ebargs":"--linux"}'
+          sel="all"
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            sel="${{ github.event.inputs.platform }}"
+          fi
+          case "$sel" in
+            win)   inc="$win" ;;
+            mac)   inc="$mac" ;;
+            linux) inc="$linux" ;;
+            *)     inc="$mac,$win,$linux" ;;
+          esac
+          echo "matrix={\"include\":[$inc]}" >> "$GITHUB_OUTPUT"
+
   build:
+    needs: setup
     strategy:
       fail-fast: false
-      matrix:
-        include:
-          - os: macos-latest
-            platform: mac
-            ebargs: "--mac --x64 --arm64"
-          - os: windows-latest
-            platform: win
-            ebargs: "--win"
-          - os: ubuntu-latest
-            platform: linux
-            ebargs: "--linux"
+      matrix: ${{ fromJSON(needs.setup.outputs.matrix) }}
 
     runs-on: ${{ matrix.os }}
     steps:
@@ -78,8 +110,25 @@ jobs:
             echo "WIN_CSC_KEY_PASSWORD=$WIN_CERT_PASSWORD" >> "$GITHUB_ENV"
           fi
 
-      - name: Package and publish
+      # Tag push -> publish a GitHub Release. workflow_dispatch -> build only
+      # (--publish never) and attach the installer as an artifact below.
+      - name: Package
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: npx electron-builder ${{ matrix.ebargs }} ${MAC_NOTARIZE_FLAG:-} --publish always
+        run: |
+          PUBLISH=never
+          if [ "${{ github.event_name }}" = "push" ]; then PUBLISH=always; fi
+          npx electron-builder ${{ matrix.ebargs }} ${MAC_NOTARIZE_FLAG:-} --publish "$PUBLISH"
+
+      - name: Upload installer (validation artifact)
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@v4
+        with:
+          name: print-bridge-${{ matrix.platform }}
+          path: |
+            release/*.exe
+            release/*.dmg
+            release/*.AppImage
+            release/*.deb
+          if-no-files-found: warn
