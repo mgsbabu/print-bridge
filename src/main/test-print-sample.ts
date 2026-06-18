@@ -3,6 +3,23 @@ export function buildZplSample(now: Date = new Date()): string {
   return ["^XA", "^CF0,30", "^FO20,20^FDBRIDGE OK^FS", `^FO20,60^FD${ts}^FS`, "^XZ"].join("\n");
 }
 
+// A tiny TSPL2 self-test for TSC / TSPL-native printers. Continuous-friendly
+// (GAP 0); a 40×25mm label is small enough for both 38.1mm and 76mm rolls.
+export function buildTsplSample(now: Date = new Date()): string {
+  const ts = now.toISOString().replace("T", " ").slice(0, 16);
+  return [
+    "SIZE 40 mm,25 mm",
+    "GAP 0 mm,0 mm",
+    "DIRECTION 1",
+    "DENSITY 8",
+    "CLS",
+    'TEXT 16,24,"0",0,12,12,"BRIDGE OK"',
+    `TEXT 16,64,"0",0,8,8,"${ts}"`,
+    "PRINT 1,1",
+    "",
+  ].join("\r\n");
+}
+
 // ESC/POS control sequences:
 //   ESC @       — initialize printer (1B 40)
 //   ESC a 1     — center align (1B 61 01)

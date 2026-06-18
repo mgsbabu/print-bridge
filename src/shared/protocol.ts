@@ -11,7 +11,7 @@ export type PairRequest = z.infer<typeof PairRequest>;
 
 export const LoadedPrinter = z.object({
   name: z.string(),
-  language: z.enum(["PDF", "ZPL", "ESC_POS"]),
+  language: z.enum(["PDF", "ZPL", "ESC_POS", "TSPL"]),
   mediaWidthMm: z.number().nullable(),
   mediaHeightMm: z.number().nullable(),
   mediaKind: z.string().nullable(),
@@ -44,7 +44,7 @@ export const ErrorResponse = z.object({
 });
 export type ErrorResponse = z.infer<typeof ErrorResponse>;
 
-export const PrintLanguage = z.enum(["PDF", "ZPL", "ESC_POS"]);
+export const PrintLanguage = z.enum(["PDF", "ZPL", "ESC_POS", "TSPL"]);
 export type PrintLanguage = z.infer<typeof PrintLanguage>;
 
 export const PrintRequest = z.object({

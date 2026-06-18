@@ -14,6 +14,7 @@ interface Harness {
   dispatchPdf: ReturnType<typeof vi.fn<[PrintRequest], Promise<PrintResult>>>;
   dispatchZpl: ReturnType<typeof vi.fn<[PrintRequest], Promise<PrintResult>>>;
   dispatchEscpos: ReturnType<typeof vi.fn<[PrintRequest], Promise<PrintResult>>>;
+  dispatchTspl: ReturnType<typeof vi.fn<[PrintRequest], Promise<PrintResult>>>;
   jobRecorder: JobRecorder & {
     start: ReturnType<typeof vi.fn>;
     finish: ReturnType<typeof vi.fn>;
@@ -32,11 +33,13 @@ async function startHarness(
   dispatchImpl: (req: PrintRequest) => Promise<PrintResult> = okResult,
   zplImpl: (req: PrintRequest) => Promise<PrintResult> = okResult,
   escposImpl: (req: PrintRequest) => Promise<PrintResult> = okResult,
+  tsplImpl: (req: PrintRequest) => Promise<PrintResult> = okResult,
 ): Promise<Harness> {
   const state = { pairing: initial, printers };
   const dispatchPdf = vi.fn(dispatchImpl);
   const dispatchZpl = vi.fn(zplImpl);
   const dispatchEscpos = vi.fn(escposImpl);
+  const dispatchTspl = vi.fn(tsplImpl);
   let nextJobId = 1;
   const jobRecorder = {
     start: vi.fn(() => nextJobId++),
@@ -55,6 +58,7 @@ async function startHarness(
     dispatchPdf,
     dispatchZpl,
     dispatchEscpos,
+    dispatchTspl,
     jobRecorder,
     errorRing,
   };
@@ -70,6 +74,7 @@ async function startHarness(
     dispatchPdf,
     dispatchZpl,
     dispatchEscpos,
+    dispatchTspl,
     jobRecorder,
     errorRing,
   };

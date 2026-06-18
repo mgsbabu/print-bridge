@@ -118,5 +118,19 @@ function sendLocalRawUnix(printerName: string, payload: Buffer): Promise<void> {
 
 async function sendLocalRawWindows(printerName: string, payload: Buffer): Promise<void> {
   const printer = await import("@grandchef/node-printer");
-  printer.printDirect({ data: payload, printer: printerName, type: "RAW" });
+  // node-printer's printDirect invokes the success/error callbacks with NO
+  // defaults — omitting them means it calls `error(...)` / `success(...)` on
+  // `undefined`, throwing "error is not a function" and masking the real
+  // outcome. Always pass both and bridge them to the promise so a genuine
+  // driver failure surfaces as a real Error (and success resolves).
+  await new Promise<void>((resolve, reject) => {
+    printer.printDirect({
+      data: payload,
+      printer: printerName,
+      type: "RAW",
+      success: () => resolve(),
+      error: (err: Error) =>
+        reject(err instanceof Error ? err : new Error(String(err || "printDirect failed"))),
+    });
+  });
 }

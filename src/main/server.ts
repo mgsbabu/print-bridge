@@ -12,7 +12,7 @@ import {
 import { ErrorCode } from "../shared/error-codes";
 import type { PairingRecord } from "./store";
 import type { PrintResult } from "./dispatcher/pdf";
-import { buildZplSample, buildEscposSample } from "./test-print-sample";
+import { buildZplSample, buildEscposSample, buildTsplSample } from "./test-print-sample";
 import type { PrintLanguage } from "../shared/protocol";
 import type { JobStatus } from "./jobs/repository";
 import type { ErrorRing } from "./error-ring";
@@ -35,6 +35,7 @@ export interface ServerDeps {
   dispatchPdf: (req: PrintRequest) => Promise<PrintResult>;
   dispatchZpl: (req: PrintRequest) => Promise<PrintResult>;
   dispatchEscpos: (req: PrintRequest) => Promise<PrintResult>;
+  dispatchTspl: (req: PrintRequest) => Promise<PrintResult>;
   jobRecorder?: JobRecorder;
   errorRing?: ErrorRing;
 }
@@ -118,6 +119,8 @@ export function createApp(deps: ServerDeps): Express {
       result = await deps.dispatchZpl(body);
     } else if (body.language === "ESC_POS") {
       result = await deps.dispatchEscpos(body);
+    } else if (body.language === "TSPL") {
+      result = await deps.dispatchTspl(body);
     } else {
       const failure = {
         dispatched: false as const,
@@ -145,7 +148,12 @@ export function createApp(deps: ServerDeps): Express {
     try {
       const body = PrintRequest.parse(req.body);
       const result = await recordedDispatch(body);
-      if (body.language !== "PDF" && body.language !== "ZPL" && body.language !== "ESC_POS") {
+      if (
+        body.language !== "PDF" &&
+        body.language !== "ZPL" &&
+        body.language !== "ESC_POS" &&
+        body.language !== "TSPL"
+      ) {
         res.status(400).json(result);
         return;
       }
@@ -186,7 +194,7 @@ export function createApp(deps: ServerDeps): Express {
         res.status(400).json({
           dispatched: false,
           copiesAcknowledged: 0,
-          error: `Test print only supports ZPL and ESC/POS printers; ${printerName} reports PDF`,
+          error: `Test print only supports ZPL, TSPL and ESC/POS printers; ${printerName} reports PDF`,
           errorCode: ErrorCode.BAD_PAYLOAD,
         });
         return;
@@ -194,7 +202,9 @@ export function createApp(deps: ServerDeps): Express {
       const payload =
         target.language === "ZPL"
           ? Buffer.from(buildZplSample(), "utf-8")
-          : buildEscposSample();
+          : target.language === "TSPL"
+            ? Buffer.from(buildTsplSample(), "utf-8")
+            : buildEscposSample();
       const result = await recordedDispatch({
         printerName,
         language: target.language,
