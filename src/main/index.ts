@@ -9,6 +9,7 @@ import { refreshPrinters, getCachedPrinters } from "./dispatcher/printers";
 import { dispatchPdf } from "./dispatcher/pdf";
 import { dispatchZpl } from "./dispatcher/zpl";
 import { dispatchEscpos } from "./dispatcher/escpos";
+import { dispatchTspl } from "./dispatcher/tspl";
 import { NetworkPrinter } from "../shared/protocol";
 import { openJobsDb } from "./jobs/db";
 import { JobsRepository } from "./jobs/repository";
@@ -146,6 +147,7 @@ app.whenReady().then(() => {
     dispatchPdf,
     dispatchZpl,
     dispatchEscpos,
+    dispatchTspl,
     jobRecorder,
     errorRing,
   };
