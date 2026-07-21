@@ -84,6 +84,7 @@ async function reloadPrintersAndRefresh(): Promise<void> {
     log.info({ count: list.length }, "printers reloaded");
   } catch (err) {
     log.error({ err }, "printer enumeration failed");
+    errorRing.record(err, "PRINTER_ENUM_FAILED");
   } finally {
     reloadingPrinters = false;
     refreshMenu();
