@@ -1,10 +1,19 @@
 import { describe, it, expect, vi } from "vitest";
+import { EventEmitter } from "node:events";
 import type http from "node:http";
 import { HttpSupervisor } from "../src/main/supervisor";
 import { ErrorRing } from "../src/main/error-ring";
 
 function fakeServer(): http.Server {
-  return { close: vi.fn() } as unknown as http.Server;
+  return { close: vi.fn(), once: vi.fn(), on: vi.fn() } as unknown as http.Server;
+}
+
+// A fake that actually emits 'error'/'listening', for tests that need
+// the supervisor to react to those events rather than calling
+// handleCrash() directly.
+function emittingServer(): http.Server & EventEmitter {
+  return Object.assign(new EventEmitter(), { close: vi.fn() }) as unknown as http.Server &
+    EventEmitter;
 }
 
 interface FakeTimers {
@@ -99,5 +108,81 @@ describe("HttpSupervisor", () => {
     const supervisor = new HttpSupervisor({ start, errorRing: ring, timers });
     supervisor.handleCrash(new Error("boom"));
     expect(() => timers.flush()).not.toThrow();
+  });
+
+  it("tags a server 'error' event as PORT_IN_USE when the port is taken", () => {
+    const ring = new ErrorRing();
+    const servers: Array<http.Server & EventEmitter> = [];
+    const start = vi.fn(() => {
+      const s = emittingServer();
+      servers.push(s);
+      return s;
+    });
+    const timers = makeTimers();
+    new HttpSupervisor({ start, errorRing: ring, timers });
+
+    const err = Object.assign(new Error("addr in use"), { code: "EADDRINUSE" });
+    servers[0].emit("error", err);
+
+    expect(ring.list()[0].code).toBe("PORT_IN_USE");
+    expect(timers.setTimeout).toHaveBeenCalledOnce();
+  });
+
+  it("backs off exponentially across consecutive failures, capped at maxRestartIntervalMs", () => {
+    const ring = new ErrorRing();
+    const servers: Array<http.Server & EventEmitter> = [];
+    const start = vi.fn(() => {
+      const s = emittingServer();
+      servers.push(s);
+      return s;
+    });
+    const timers = makeTimers();
+    new HttpSupervisor({
+      start,
+      errorRing: ring,
+      timers,
+      minRestartIntervalMs: 1000,
+      maxRestartIntervalMs: 3000,
+    });
+
+    const addrInUse = () => Object.assign(new Error("addr in use"), { code: "EADDRINUSE" });
+
+    servers[0].emit("error", addrInUse());
+    expect(timers.setTimeout).toHaveBeenLastCalledWith(expect.any(Function), 1000);
+    timers.flush();
+
+    servers[1].emit("error", addrInUse());
+    expect(timers.setTimeout).toHaveBeenLastCalledWith(expect.any(Function), 2000);
+    timers.flush();
+
+    servers[2].emit("error", addrInUse());
+    expect(timers.setTimeout).toHaveBeenLastCalledWith(expect.any(Function), 3000); // capped
+  });
+
+  it("resets the backoff once the server successfully starts listening", () => {
+    const ring = new ErrorRing();
+    const servers: Array<http.Server & EventEmitter> = [];
+    const start = vi.fn(() => {
+      const s = emittingServer();
+      servers.push(s);
+      return s;
+    });
+    const timers = makeTimers();
+    new HttpSupervisor({
+      start,
+      errorRing: ring,
+      timers,
+      minRestartIntervalMs: 1000,
+      maxRestartIntervalMs: 60000,
+    });
+
+    const addrInUse = () => Object.assign(new Error("addr in use"), { code: "EADDRINUSE" });
+
+    servers[0].emit("error", addrInUse());
+    timers.flush();
+    servers[1].emit("listening");
+
+    servers[1].emit("error", addrInUse());
+    expect(timers.setTimeout).toHaveBeenLastCalledWith(expect.any(Function), 1000);
   });
 });

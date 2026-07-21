@@ -7,6 +7,7 @@ let osCache: LoadedPrinter[] = [];
 function inferLanguage(name: string): PrintLanguage {
   const n = name.toLowerCase();
   if (/zebra|^zd|^zt|^gx|^gk|^gc/.test(n)) return "ZPL";
+  if (/\btsc\b|^ttp-|^te\d|^ta\d|^tx\d|^tdp-/.test(n)) return "TSPL";
   if (/tsp|tm-t|rongta|epson.*receipt/.test(n)) return "ESC_POS";
   return "PDF";
 }

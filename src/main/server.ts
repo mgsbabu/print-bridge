@@ -50,6 +50,17 @@ export function createApp(deps: ServerDeps): Express {
 
   app.use(express.json({ limit: "20mb" }));
 
+  // Chrome's Private Network Access preflight: a public HTTPS origin
+  // (e.g. web.fabtailor.in) fetching a loopback address must get this
+  // header back on the preflight response or the browser blocks the
+  // request before it ever reaches the CORS check below.
+  app.use((req, res, next) => {
+    if (req.headers["access-control-request-private-network"] === "true") {
+      res.setHeader("Access-Control-Allow-Private-Network", "true");
+    }
+    next();
+  });
+
   app.use((req, res, next) => {
     if (req.path === "/pair") {
       cors({ origin: true, methods: ["POST", "OPTIONS"], allowedHeaders: ["Content-Type"] })(
