@@ -226,23 +226,48 @@ calls.
   "tenantId": 13,
   "orgUnitId": 12,
   "token": "Z9aT...64chars",
-  "tenantOrigin": "https://app.tailorapp.in"
+  "tenantOrigin": "https://app.tailorapp.in",
+  "tenantOrigins": ["https://laundry.example.com"]
 }
 ```
 
-After pair, the Bridge accepts requests only from `tenantOrigin`
+After pair, the Bridge accepts requests only from the paired origins
 (CORS) bearing the matching token.
+
+`tenantOrigin` is required and is the origin the pairing was created
+from. `tenantOrigins` is optional and lists further origins the same
+install answers to — max 10, each a full URL. Omit it and the Bridge
+behaves exactly as it always has, which is why pairing codes issued
+before this field keep working untouched.
+
+**Why more than one.** A counter can legitimately be reached at more
+than one hostname: a tenant on a custom domain who also opens the
+platform domain, or one machine serving two brands of the same
+platform. With a single origin the second hostname fails the CORS
+pre-flight on every route except `/pair` — the browser blocks the
+request, `fetch` throws, and the web app reports the Bridge **offline**
+while it is running normally and has never seen the call. Nothing is
+logged at either end, so it presents as a network fault rather than a
+policy one. That is the failure this field exists to remove.
 
 ### CORS
 
 ```
-Access-Control-Allow-Origin: <paired tenant origin>
+Access-Control-Allow-Origin: <the requesting origin, if it is in the paired list>
 Access-Control-Allow-Methods: GET, POST, OPTIONS
 Access-Control-Allow-Headers: Content-Type, X-Bridge-Token
 Access-Control-Max-Age: 600
 ```
 
-No wildcard. Pre-flight OPTIONS handled.
+No wildcard, and no reflection of an unlisted origin. Pre-flight
+OPTIONS handled. An **unpaired** Bridge allows no origin at all on any
+route but `/pair`, which stays open because it is the one call that has
+no allow-list to consult yet.
+
+Passing the list rather than a single string also tightens the header:
+with one static origin the header was emitted on every response
+regardless of who asked (the browser then rejected the mismatch); with
+a list it is emitted only on a match.
 
 ---
 

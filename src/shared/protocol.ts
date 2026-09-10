@@ -5,7 +5,27 @@ export const PairRequest = z.object({
   tenantId: z.number().int().positive(),
   orgUnitId: z.number().int().positive(),
   token: z.string().min(32),
+  /**
+   * The web origin this Bridge answers to. Required, and still the primary:
+   * every pairing has exactly one origin it was created from.
+   */
   tenantOrigin: z.string().url(),
+  /**
+   * Further origins the same install may be driven from.
+   *
+   * <p>One counter can legitimately be reached at more than one hostname —
+   * a tenant on a custom domain who also uses the platform domain, or a
+   * single machine serving two brands of the same platform. The Bridge used
+   * to allow exactly one, so the second hostname failed CORS on every route
+   * but /pair: the browser blocked the request, fetch threw, and the web app
+   * reported the Bridge "offline" while it sat there running and never saw
+   * the call. Nothing appeared in any log, on either side.
+   *
+   * <p>Optional so an older pairing payload — and the QR codes already
+   * printed from it — keep working untouched. Still a strict allow-list:
+   * this widens it by named origins, never to a wildcard.
+   */
+  tenantOrigins: z.array(z.string().url()).max(10).optional(),
 });
 export type PairRequest = z.infer<typeof PairRequest>;
 

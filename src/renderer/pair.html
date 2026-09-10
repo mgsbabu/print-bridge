@@ -21,6 +21,7 @@
     .msg { margin-top: 14px; padding: 8px 10px; border-radius: 4px; font-size: 12px; }
     .err { background: #ffe4e1; color: #b00020; }
     .ok  { background: #e0f5e0; color: #1b5e20; }
+    .hint { margin-top: 4px; font-size: 11px; color: #666; line-height: 1.4; }
   </style>
 </head>
 <body>
@@ -47,6 +48,14 @@
       <label for="tenantOrigin">Tenant Origin</label>
       <input id="tenantOrigin" name="tenantOrigin" type="url"
              placeholder="http://localhost:3000" required />
+      <label for="tenantOrigins">Additional Origins (optional)</label>
+      <input id="tenantOrigins" name="tenantOrigins" type="text"
+             placeholder="https://second-domain.example.com, https://third.example.com" />
+      <div class="hint">
+        Other web addresses this counter is opened from — a custom domain
+        alongside the platform one, say. Comma separated. Leave blank unless
+        the app reports the Bridge offline on a second address.
+      </div>
       <label for="token">Pairing Token</label>
       <input id="token" name="token" type="text" minlength="32"
              placeholder="64-character token" required />

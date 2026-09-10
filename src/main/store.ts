@@ -6,7 +6,14 @@ export interface PairingRecord {
   tenantId: number;
   orgUnitId: number;
   token: string;
+  /** The origin this pairing was created from. Always present. */
   tenantOrigin: string;
+  /**
+   * Additional origins the same install answers to. Absent on every pairing
+   * written before multi-origin support, which is why nothing reads it
+   * without a fallback — see allowedOrigins() in shared/origins.ts.
+   */
+  tenantOrigins?: string[];
 }
 
 interface PersistedShape {
@@ -15,6 +22,7 @@ interface PersistedShape {
     orgUnitId: number;
     tokenEnc: string;
     tenantOrigin: string;
+    tenantOrigins?: string[];
   };
   networkPrinters?: NetworkPrinter[];
 }
@@ -30,8 +38,10 @@ export function getPairing(): PairingRecord | null {
     orgUnitId: p.orgUnitId,
     token,
     tenantOrigin: p.tenantOrigin,
+    tenantOrigins: p.tenantOrigins,
   };
 }
+
 
 export function setPairing(p: PairingRecord): void {
   const tokenEnc = safeStorage.encryptString(p.token).toString("base64");
@@ -40,6 +50,7 @@ export function setPairing(p: PairingRecord): void {
     orgUnitId: p.orgUnitId,
     tokenEnc,
     tenantOrigin: p.tenantOrigin,
+    tenantOrigins: p.tenantOrigins,
   });
 }
 

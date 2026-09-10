@@ -23,6 +23,13 @@ function tryDecodeAndFill() {
       f.orgUnitId.value = json.orgUnitId;
       f.token.value = json.token;
       f.tenantOrigin.value = json.tenantOrigin;
+      // Carried through when the web app put extra origins in the code, so a
+      // counter opened at two addresses pairs for both in one paste. Absent
+      // from every code issued before multi-origin support, and left alone
+      // rather than cleared — an operator may have typed them by hand.
+      if (Array.isArray(json.tenantOrigins) && json.tenantOrigins.length > 0) {
+        f.tenantOrigins.value = json.tenantOrigins.join(", ");
+      }
       codeStatus.textContent = `Decoded — tenant ${json.tenantId}, org unit ${json.orgUnitId}, origin ${json.tenantOrigin}`;
       codeStatus.style.color = "#1b5e20";
       return json;
@@ -45,11 +52,21 @@ f.addEventListener("submit", async (e) => {
   btn.disabled = true;
   try {
     tryDecodeAndFill();
+    // Comma separated, and the blanks dropped: a trailing comma or a stray
+    // space must not become an empty string, which would fail the URL check
+    // on the server and reject an otherwise good pairing.
+    const extraOrigins = f.tenantOrigins.value
+      .split(",")
+      .map((o) => o.trim())
+      .filter((o) => o.length > 0);
     const body = {
       tenantId: Number(f.tenantId.value),
       orgUnitId: Number(f.orgUnitId.value),
       token: f.token.value.trim(),
       tenantOrigin: f.tenantOrigin.value.trim(),
+      // Omitted entirely when empty: the field is optional in the schema, and
+      // sending [] would persist an empty list where "not set" is meant.
+      ...(extraOrigins.length > 0 ? { tenantOrigins: extraOrigins } : {}),
     };
     const r = await fetch("http://127.0.0.1:7755/pair", {
       method: "POST",

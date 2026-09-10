@@ -11,6 +11,7 @@ import {
 } from "../shared/protocol";
 import { ErrorCode } from "../shared/error-codes";
 import type { PairingRecord } from "./store";
+import { allowedOrigins } from "../shared/origins";
 import type { PrintResult } from "./dispatcher/pdf";
 import { buildZplSample, buildEscposSample, buildTsplSample } from "./test-print-sample";
 import type { PrintLanguage } from "../shared/protocol";
@@ -71,8 +72,23 @@ export function createApp(deps: ServerDeps): Express {
       return;
     }
     const pairing = deps.getPairing();
+    // A named allow-list, never a wildcard — the spec's security property, and
+    // the reason this reads a list rather than becoming `origin: true`.
+    //
+    // One install can legitimately be driven from more than one hostname: a
+    // tenant on a custom domain who also uses the platform domain, or one
+    // machine serving two brands. Before this it allowed exactly one, so the
+    // second hostname failed the preflight on every route but /pair, fetch
+    // threw in the browser, and the web app showed the Bridge "offline" while
+    // it was running perfectly and had never seen the request. Nothing was
+    // logged on either side, which is what made it hard to find.
+    //
+    // An unpaired Bridge yields an empty list, and `false` refuses everything.
+    // That is the correct reading: until /pair has run, no page has shown it
+    // belongs to this counter.
+    const origins = allowedOrigins(pairing);
     cors({
-      origin: pairing?.tenantOrigin ?? false,
+      origin: origins.length > 0 ? origins : false,
       methods: ["GET", "POST", "OPTIONS"],
       allowedHeaders: ["Content-Type", "X-Bridge-Token"],
       maxAge: 600,
