@@ -1,6 +1,6 @@
 {
 	"name": "print-bridge",
-	"version": "0.1.4",
+	"version": "0.1.5",
 	"description": "Local print bridge agent for TailorApp — pushes PDF/ZPL/ESC-POS/TSPL jobs from the cloud web app to outlet printers.",
 	"main": "dist/main/index.js",
 	"author": "TailorApp Technologies Pvt Ltd",
