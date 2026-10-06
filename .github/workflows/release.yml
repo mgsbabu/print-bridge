@@ -17,6 +17,7 @@ on:
           - win
           - mac
           - linux
+          - android
           - all
 
 permissions:
@@ -50,12 +51,17 @@ jobs:
             win)   inc="$win" ;;
             mac)   inc="$mac" ;;
             linux) inc="$linux" ;;
+            # android is built by its own job below; the desktop `build` job is skipped for it.
+            # The matrix still needs one entry to expand, so hand it the cheapest.
+            android) inc="$linux" ;;
             *)     inc="$mac,$win,$linux" ;;
           esac
           echo "matrix={\"include\":[$inc]}" >> "$GITHUB_OUTPUT"
 
   build:
     needs: setup
+    # Desktop installers only. platform=android runs the `android` job instead.
+    if: ${{ github.event.inputs.platform != 'android' }}
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON(needs.setup.outputs.matrix) }}
@@ -136,3 +142,103 @@ jobs:
             release/*.AppImage
             release/*.deb
           if-no-files-found: warn
+
+  # Android APK (sideloaded onto POS machines; NOT published to Google Play).
+  # Runs after the desktop build so that, on a tag, the GitHub Release electron-builder
+  # created already exists and the APK is attached to the same release as the exe/dmg.
+  android:
+    needs: [setup, build]
+    # `!cancelled()` so a failed or skipped desktop build does not block the APK.
+    if: >-
+      ${{ !cancelled() && (github.event_name == 'push' ||
+      github.event.inputs.platform == 'android' || github.event.inputs.platform == 'all') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: android-actions/setup-android@v3
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Resolve version
+        id: version
+        shell: bash
+        run: |
+          set -e
+          if [ "${{ github.event_name }}" = "push" ]; then
+            v="${GITHUB_REF_NAME#v}"
+          else
+            v="$(node -p "require('./package.json').version")"
+          fi
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+
+      # The keystore never lives in the repo. A tag build refuses to ship without it, because a
+      # debug-signed APK cannot be updated in place by the real one later.
+      - name: Decode release keystore
+        shell: bash
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          set -e
+          if [ -z "$ANDROID_KEYSTORE_BASE64" ]; then
+            if [ "${{ github.event_name }}" = "push" ]; then
+              echo "::error::ANDROID_KEYSTORE_BASE64 is not set; refusing to publish a debug-signed APK. See docs/android-bridge.md."
+              exit 1
+            fi
+            echo "::warning::No ANDROID_KEYSTORE_BASE64 secret: validation build is signed with the debug key. Do not distribute it."
+            exit 0
+          fi
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.keystore"
+          {
+            echo "RELEASE_STORE_FILE=$RUNNER_TEMP/release.keystore"
+            echo "RELEASE_STORE_PASSWORD=$ANDROID_KEYSTORE_PASSWORD"
+            echo "RELEASE_KEY_ALIAS=$ANDROID_KEY_ALIAS"
+            echo "RELEASE_KEY_PASSWORD=$ANDROID_KEY_PASSWORD"
+          } >> "$GITHUB_ENV"
+
+      - name: Unit tests
+        working-directory: android
+        run: chmod +x gradlew && ./gradlew --no-daemon :app:testDebugUnitTest
+
+      - name: Build release APK
+        working-directory: android
+        run: ./gradlew --no-daemon :app:assembleRelease -PAPP_VERSION_NAME=${{ steps.version.outputs.version }}
+
+      - name: Name the APK
+        id: apk
+        shell: bash
+        run: |
+          set -e
+          out="TailorApp-Print-Bridge-${{ steps.version.outputs.version }}.apk"
+          cp android/app/build/outputs/apk/release/app-release.apk "$out"
+          echo "file=$out" >> "$GITHUB_OUTPUT"
+
+      # Tag push -> attach to the same GitHub Release as the exe/dmg.
+      - name: Attach APK to the GitHub Release
+        if: github.event_name == 'push'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+          tag="${GITHUB_REF_NAME}"
+          # electron-builder normally created the release already; create it only if every desktop job failed.
+          gh release view "$tag" >/dev/null 2>&1 || gh release create "$tag" --title "$tag" --notes "" --verify-tag
+          gh release upload "$tag" "${{ steps.apk.outputs.file }}" --clobber
+
+      # workflow_dispatch -> artifact only, no release.
+      - name: Upload APK (validation artifact)
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@v4
+        with:
+          name: print-bridge-android
+          path: ${{ steps.apk.outputs.file }}
+          if-no-files-found: error

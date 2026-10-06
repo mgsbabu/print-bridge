@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Any USB printer-class device (class 7). No vendor/product IDs on purpose: which printer is used is decided per
+     request by the portal, not by this filter. -->
+<resources>
+    <usb-device class="7" />
+</resources>

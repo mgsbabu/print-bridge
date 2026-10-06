@@ -1,0 +1,4 @@
+# gradlew runs on the Linux CI runner; CRLF in it breaks the shebang.
+gradlew text eol=lf
+*.bat text eol=crlf
+*.jar binary
