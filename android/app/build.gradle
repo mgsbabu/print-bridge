@@ -1,0 +1,89 @@
+import groovy.json.JsonSlurper
+
+plugins {
+    id 'com.android.application'
+    id 'org.jetbrains.kotlin.android'
+}
+
+// Version comes from -PAPP_VERSION_NAME / APP_VERSION_NAME (CI passes the git tag), falling back to the
+// desktop package.json so a local build carries the same number as the Electron app.
+def prop = { String name -> project.findProperty(name) ?: System.getenv(name) }
+def appVersionName = (prop('APP_VERSION_NAME') ?: new JsonSlurper().parse(file('../../package.json')).version).toString()
+        .replaceFirst(/^v/, '')
+// 1.2.3 -> 10203. Pre-release suffixes (1.2.3-rc1) are ignored for the code.
+def appVersionCode = {
+    def m = (appVersionName =~ /^(\d+)\.(\d+)\.(\d+)/)
+    if (!m.find()) throw new GradleException("APP_VERSION_NAME '${appVersionName}' is not major.minor.patch")
+    m.group(1).toInteger() * 10000 + m.group(2).toInteger() * 100 + m.group(3).toInteger()
+}()
+
+android {
+    namespace 'in.tailorapp.printbridge'
+    compileSdk 36
+
+    defaultConfig {
+        applicationId 'in.tailorapp.printbridge'
+        minSdk 24
+        targetSdk 36
+        versionCode appVersionCode
+        versionName appVersionName
+    }
+
+    buildFeatures {
+        buildConfig true
+    }
+
+    // Release signing is read from Gradle properties or the environment; nothing is stored in the repo.
+    def releaseStore = prop('RELEASE_STORE_FILE')
+    def haveReleaseKey = releaseStore && prop('RELEASE_STORE_PASSWORD') && prop('RELEASE_KEY_ALIAS') && prop('RELEASE_KEY_PASSWORD')
+    signingConfigs {
+        if (haveReleaseKey) {
+            release {
+                storeFile file(releaseStore.toString())
+                storePassword prop('RELEASE_STORE_PASSWORD').toString()
+                keyAlias prop('RELEASE_KEY_ALIAS').toString()
+                keyPassword prop('RELEASE_KEY_PASSWORD').toString()
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            if (haveReleaseKey) {
+                signingConfig signingConfigs.release
+            } else {
+                // Local builds only: lets assembleRelease produce an installable APK without the real key.
+                // CI must set the RELEASE_* secrets; docs/android-bridge.md explains how.
+                signingConfig signingConfigs.debug
+                gradle.taskGraph.whenReady {
+                    logger.warn('WARNING: RELEASE_STORE_FILE / RELEASE_STORE_PASSWORD / RELEASE_KEY_ALIAS / ' +
+                            'RELEASE_KEY_PASSWORD not set - signing the release APK with the DEBUG keystore. ' +
+                            'Do not distribute this build.')
+                }
+            }
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    testOptions {
+        unitTests.returnDefaultValues = false
+    }
+
+    lint {
+        // The only lint complaint worth failing a sideload build over is a real error.
+        abortOnError true
+        checkReleaseBuilds false
+    }
+}
+
+dependencies {
+    // No runtime dependencies on purpose: plain framework APIs keep the APK small and the build reproducible.
+    testImplementation 'junit:junit:4.13.2'
+    // android.jar's org.json is a stub that throws in JVM tests; the real implementation shadows it.
+    testImplementation 'org.json:json:20240303'
+}
