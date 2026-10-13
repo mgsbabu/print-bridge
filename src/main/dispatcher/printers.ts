@@ -4,11 +4,22 @@ import { getNetworkPrinters } from "../store";
 
 let osCache: LoadedPrinter[] = [];
 
+// BIXOLON SRP-275III: ESC/POS-compatible impression printer with an auto-cutter.
+const BIXOLON_RE = /bixolon|\bsrp-?\d/i;
+
+// Models known to have an auto-cutter; the ESC/POS dispatcher cuts after every
+// job on these so each tag comes out separated.
+export function hasAutoCutter(name: string): boolean {
+  return BIXOLON_RE.test(name);
+}
+
 function inferLanguage(name: string): PrintLanguage {
   const n = name.toLowerCase();
   if (/zebra|^zd|^zt|^gx|^gk|^gc/.test(n)) return "ZPL";
-  if (/\btsc\b|^ttp-|^te\d|^ta\d|^tx\d|^tdp-/.test(n)) return "TSPL";
-  if (/tsp|tm-t|rongta|epson.*receipt/.test(n)) return "ESC_POS";
+  // BT-802: Bluetooth tag printer that speaks TSPL (TSC-compatible). Once
+  // paired, the OS exposes it as a printer, so it takes the same raw path.
+  if (/\btsc\b|^ttp-|^te\d|^ta\d|^tx\d|^tdp-|\bbt-?802\b/.test(n)) return "TSPL";
+  if (BIXOLON_RE.test(n) || /tsp|tm-t|rongta|epson.*receipt/.test(n)) return "ESC_POS";
   return "PDF";
 }
 
