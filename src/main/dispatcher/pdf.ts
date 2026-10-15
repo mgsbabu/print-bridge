@@ -3,6 +3,8 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
 import crypto from "node:crypto";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 import { ErrorCode } from "../../shared/error-codes";
 import type { PrintRequest, PrintSuccessResponse, PrintFailureResponse } from "../../shared/protocol";
 
@@ -10,9 +12,17 @@ export type PrintFn = (pdf: string, options?: PrintOptions) => Promise<void>;
 
 export type PrintResult = PrintSuccessResponse | PrintFailureResponse;
 
+const execFileAsync = promisify(execFile);
+
+// pdf-to-printer is Windows-only; on macOS/Linux hand the PDF to CUPS.
+const cupsPrint: PrintFn = async (pdf, options) => {
+  const args = options?.printer ? ["-d", options.printer] : [];
+  await execFileAsync("lp", [...args, "-n", String(options?.copies ?? 1), pdf]);
+};
+
 export async function dispatchPdf(
   req: PrintRequest,
-  printFn: PrintFn = pdfPrint,
+  printFn: PrintFn = process.platform === "win32" ? pdfPrint : cupsPrint,
 ): Promise<PrintResult> {
   const tmp = path.join(os.tmpdir(), `bridge-${crypto.randomUUID()}.pdf`);
   try {

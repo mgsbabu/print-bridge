@@ -5,6 +5,7 @@ vi.mock("pdf-to-printer", () => ({
     { name: "BIXOLON SRP-275III" },
     { name: "Bluetooth-BT-802" },
     { name: "BT802" },
+    { name: "Unnati TT 203 DPI Premium" },
     { name: "Some Laser" },
   ],
   getDefaultPrinter: async () => null,
@@ -14,11 +15,14 @@ vi.mock("../src/main/store", () => ({ getNetworkPrinters: () => [] }));
 import { refreshPrinters, hasAutoCutter } from "../src/main/dispatcher/printers";
 
 describe("printer language inference", () => {
-  it("maps BIXOLON SRP-275III to ESC_POS, BT-802 to TSPL, others to PDF", async () => {
+  it("maps BIXOLON SRP-275III and BT-802 receipt printers to ESC_POS, others to PDF", async () => {
+    // refreshPrinters reads CUPS off Windows; this test exercises the Windows path.
+    vi.spyOn(process, "platform", "get").mockReturnValue("win32");
     const byName = Object.fromEntries((await refreshPrinters()).map((p) => [p.name, p.language]));
     expect(byName["BIXOLON SRP-275III"]).toBe("ESC_POS");
-    expect(byName["Bluetooth-BT-802"]).toBe("TSPL");
-    expect(byName["BT802"]).toBe("TSPL");
+    expect(byName["Bluetooth-BT-802"]).toBe("ESC_POS");
+    expect(byName["BT802"]).toBe("ESC_POS");
+    expect(byName["Unnati TT 203 DPI Premium"]).toBe("TSPL");
     expect(byName["Some Laser"]).toBe("PDF");
   });
 
