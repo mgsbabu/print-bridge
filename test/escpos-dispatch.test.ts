@@ -87,7 +87,7 @@ describe("dispatchEscpos", () => {
       expect(sent.subarray(RECEIPT_BYTES.length)).toEqual(Buffer.from([0x1d, 0x56, 0x42, 0x03]));
     });
 
-    it("does not double-cut when the payload already has a cut command", async () => {
+    it("upgrades a plain cut (GS V 1) to feed-then-cut without adding a second one", async () => {
       const sendLocalRaw = vi.fn(async () => undefined);
       const name = "BIXOLON SRP-275III";
       const withCut = Buffer.concat([RECEIPT_BYTES, Buffer.from([0x1d, 0x56, 0x01])]);
@@ -95,7 +95,24 @@ describe("dispatchEscpos", () => {
         sendLocalRaw,
         lookup: osLookup(name),
       });
-      expect(sendLocalRaw.mock.calls[0][1]).toEqual(withCut);
+      expect(sendLocalRaw.mock.calls[0][1]).toEqual(
+        Buffer.concat([RECEIPT_BYTES, Buffer.from([0x1d, 0x56, 0x42, 0x03])]),
+      );
+    });
+
+    it("word-wraps lines longer than 40 cols for the 76 mm roll", async () => {
+      const sendLocalRaw = vi.fn(async () => undefined);
+      const name = "BIXOLON SRP-275III";
+      const long = "We exercise utmost care in treating items (including garments, shoes)\n";
+      await dispatchEscpos(req({ printerName: name, payloadBase64: Buffer.from(long).toString("base64") }), {
+        sendLocalRaw,
+        lookup: osLookup(name),
+      });
+      const sent = (sendLocalRaw.mock.calls[0][1] as unknown as Buffer).toString("latin1");
+      const lines = sent.split("\n").slice(0, -1);
+      expect(lines.length).toBeGreaterThan(1);
+      expect(lines.every((l) => l.length <= 40)).toBe(true);
+      expect(lines.join(" ")).toBe(long.trim());
     });
 
     it("leaves non-cutter printers untouched", async () => {
