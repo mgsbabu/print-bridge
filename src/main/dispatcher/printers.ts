@@ -15,13 +15,37 @@ export function hasAutoCutter(name: string): boolean {
   return BIXOLON_RE.test(name);
 }
 
+// Unnati TT 203 DPI prints TSPL rotated 180° with the TSC-style DIRECTION 1 the
+// web app sends, so the TSPL dispatcher flips DIRECTION for it.
+export function needsReversedDirection(name: string): boolean {
+  return /\bunnati\b/i.test(name);
+}
+
+// The SRP-275III is an impact printer that only takes a 76 mm roll. Reported in
+// /printers so the web app can lay receipts out for 76 mm (40 cols) vs 80 mm (48).
+function defaultMediaWidthMm(name: string): number | null {
+  return BIXOLON_RE.test(name) ? 76 : null;
+}
+
 function inferLanguage(name: string): PrintLanguage {
   const n = name.toLowerCase();
+  // GODEX G500 (and other Godex): driven in ZPL emulation (GZPL) — set the
+  // printer's language to ZPL/GZPL in Godex's config tool.
+  if (/\bgodex\b|\bg-?[35]\d\d\b|\bez-?\d{3,4}/.test(n)) return "ZPL";
   if (/zebra|^zd|^zt|^gx|^gk|^gc/.test(n)) return "ZPL";
-  // Unnati TT 203 DPI: USB + Bluetooth label/barcode printer, TSPL.
-  if (/\btsc\b|^ttp-|^te\d|^ta\d|^tx\d|^tdp-|\bunnati\b/.test(n)) return "TSPL";
-  // BT-802: Bluetooth thermal bill/receipt printer (ESC/POS), not a label printer.
-  if (BIXOLON_RE.test(n) || /tsp|tm-t|rongta|epson.*receipt|\bbt-?802\b/.test(n)) return "ESC_POS";
+  // TSC TTP-244 / TTP-244 Pro / TE244 / TE244 Pro (also when the queue name drops
+  // the "TSC" prefix), Unnati TT 203 DPI: TSPL label printers.
+  if (/\btsc\b|\bttp[- ]?\d|\bte[- ]?\d{3}|^ta\d|^tx\d|^tdp-|\bunnati\b/.test(n)) return "TSPL";
+  // Thermal bill/receipt printers (ESC/POS). BT-802 is Bluetooth, not a label printer.
+  if (
+    BIXOLON_RE.test(n) ||
+    /\btsp\s?\d|\bmc-?print|\btm-[tum]\d|\bct-?s\d|\bpos-?\d{2}|\brp-?\d{3}|\bxp-?[a-z]?\d{2}|\bxprinter|\bposiflex|\bsewoo|\bsam4s|\bcustom\b.*\bk3|\bblack ?copper|\bzonerich|\bgprinter|\bgp-?\d{3,4}|rongta|thermal.*(receipt|pos)|receipt|epson.*receipt|\bbt-?802\b/.test(
+      n,
+    )
+  )
+    return "ESC_POS";
+  // Everything else — laser/inkjet A4/A5 and any driver-only printer — prints the
+  // PDF through the OS driver.
   return "PDF";
 }
 
@@ -50,7 +74,7 @@ export async function refreshPrinters(): Promise<LoadedPrinter[]> {
   osCache = names.map((name) => ({
     name,
     language: inferLanguage(name),
-    mediaWidthMm: null,
+    mediaWidthMm: defaultMediaWidthMm(name),
     mediaHeightMm: null,
     mediaKind: null,
     isDefault: name === defaultName,

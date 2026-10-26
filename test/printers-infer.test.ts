@@ -7,6 +7,16 @@ vi.mock("pdf-to-printer", () => ({
     { name: "BT802" },
     { name: "Unnati TT 203 DPI Premium" },
     { name: "Some Laser" },
+    { name: "TSC TTP-244 Pro" },
+    { name: "TSC TE244" },
+    { name: "TTP-244M Pro" },
+    { name: "GODEX G500" },
+    { name: "EPSON TM-T82" },
+    { name: "Star TSP143" },
+    { name: "POS-80C" },
+    { name: "HP LaserJet Pro M404 A4" },
+    { name: "Canon iR A5" },
+    { name: "Microsoft Print to PDF" },
   ],
   getDefaultPrinter: async () => null,
 }));
@@ -24,6 +34,11 @@ describe("printer language inference", () => {
     expect(byName["BT802"]).toBe("ESC_POS");
     expect(byName["Unnati TT 203 DPI Premium"]).toBe("TSPL");
     expect(byName["Some Laser"]).toBe("PDF");
+    for (const n of ["TSC TTP-244 Pro", "TSC TE244", "TTP-244M Pro"]) expect(byName[n]).toBe("TSPL");
+    expect(byName["GODEX G500"]).toBe("ZPL");
+    for (const n of ["EPSON TM-T82", "Star TSP143", "POS-80C"]) expect(byName[n]).toBe("ESC_POS");
+    for (const n of ["HP LaserJet Pro M404 A4", "Canon iR A5", "Microsoft Print to PDF"])
+      expect(byName[n]).toBe("PDF");
   });
 
   it("flags only the BIXOLON as an auto-cutter", () => {
