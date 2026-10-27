@@ -3,7 +3,8 @@ import type { PrintRequest } from "../../shared/protocol";
 import { dispatchRawBytes, type RawBytesDeps } from "./raw-bytes";
 import { dispatchEscpos } from "./escpos";
 import { findPrinter, needsReversedDirection } from "./printers";
-import { tsplToEscpos } from "./tspl-to-escpos";
+import { tsplToEscpos, tsplToEscposTag } from "./tspl-to-escpos";
+import { LINE_UNITS, dispatchTightTag } from "./tight-cut";
 import { fitTsplBarcodes } from "./tspl-fit";
 import { applyTsplSettings, type SettingsLookup } from "./print-settings";
 import { getPrinterSettings } from "../store";
@@ -45,6 +46,16 @@ export async function dispatchTspl(req: PrintRequest, deps: TsplDeps = {}): Prom
 
   const target = (deps.lookup ?? findPrinter)(req.printerName);
   if (target?.record.language === "ESC_POS") {
+    const settings = (deps.settings ?? getPrinterSettings)(req.printerName);
+    if (settings.cutMode === "tight" && settings.cutterGapMm !== undefined) {
+      // Gap-free slips: cut each tag at its own top edge. Falls through to the normal
+      // feed-then-cut path when the tag's length can't be known or exceeds the gap.
+      const tag = tsplToEscposTag(text, LINE_UNITS);
+      if (tag?.heightUnits) {
+        const tight = await dispatchTightTag(req, tag.bytes, tag.heightUnits, settings, deps);
+        if (tight) return tight;
+      }
+    }
     const escpos = tsplToEscpos(text);
     if (!escpos) {
       return {

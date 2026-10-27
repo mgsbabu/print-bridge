@@ -1,18 +1,16 @@
 import { PDFDocument, degrees } from "pdf-lib";
 import type { PrinterSettings } from "../../shared/protocol";
 
-// Applies a printer's per-printer settings (rotate180, density) to the payload
+// Applies a printer's per-printer settings (rotate180; density for TSPL/ZPL) to the payload
 // each language dispatcher is about to send. cutMode is handled where the cut
 // is added (dispatcher/escpos.ts).
 
 export type SettingsLookup = (printerName: string) => PrinterSettings;
 
 const ESC = 0x1b;
-const GS = 0x1d;
 
 // Density is stored on the TSPL scale (0-15) and scaled to each language's own range.
 const zplDensity = (d: number): number => Math.round((d / 15) * 30);
-const escposDensity = (d: number): number => Math.round((d / 15) * 8);
 
 // Index just past the first ESC @ (initialise), or 0 when the stream has none.
 function afterInit(payload: Buffer): number {
@@ -25,9 +23,8 @@ function afterInit(payload: Buffer): number {
 export function applyEscposSettings(payload: Buffer, s: PrinterSettings): Buffer {
   const extra: number[] = [];
   if (s.rotate180) extra.push(ESC, 0x7b, 0x01); // ESC { 1: upside-down printing
-  // GS ( K pL pH fn m — fn 48 selects print density. NOT yet checked against the
-  // Bixolon command manual; confirm on hardware before relying on it.
-  if (s.density !== undefined) extra.push(GS, 0x28, 0x4b, 0x02, 0x00, 0x30, escposDensity(s.density));
+  // No density here: the SRP-275III has no density command (its manual has no GS ( K),
+  // and unknown commands may print as text. Density is TSPL/ZPL only.
   if (extra.length === 0) return payload;
   const at = afterInit(payload); // ESC @ resets both settings, so they go after it
   return Buffer.concat([payload.subarray(0, at), Buffer.from(extra), payload.subarray(at)]);

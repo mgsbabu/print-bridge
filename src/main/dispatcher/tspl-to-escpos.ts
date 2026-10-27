@@ -9,7 +9,9 @@ const ESC = 0x1b;
 const GS = 0x1d;
 const DOTS_PER_MM = 8; // 203 dpi, same as the label printers
 const DEFAULT_LABEL_WIDTH_DOTS = 305; // 38.1 mm
-const TAG_COLS = 21; // 38 mm of a 76 mm roll at 40 cols/76 mm
+const MIN_TAG_COLS = 21; // 38 mm tag on a 76 mm roll at 40 cols/76 mm
+const ROLL_COLS = 40; // 76 mm roll, font A
+const ROLL_MM = 76;
 const BIG_MULTIPLIER = 12; // TSPL x/y multiplier at or above this prints double size
 const QR_MODULE_DOTS = 3;
 
@@ -83,22 +85,45 @@ function qrRaster(data: string, ecc: "L" | "M" | "Q" | "H"): Buffer {
   ]);
 }
 
+export interface EscposTag {
+  bytes: Buffer;
+  /**
+   * Printed length in vertical motion units (ESC 3 spacing), or null when it
+   * can't be known exactly (raster QR, double-size rows). Only set when the
+   * caller asked for fixed line spacing.
+   */
+  heightUnits: number | null;
+}
+
+// Printable columns for a tag of this width: the whole 76 mm roll for a full-width
+// tag, never fewer than the old fixed 21 for the 38 mm tags.
+function tagCols(widthDots: number): number {
+  const mm = widthDots / DOTS_PER_MM;
+  return Math.min(ROLL_COLS, Math.max(MIN_TAG_COLS, Math.round((mm * ROLL_COLS) / ROLL_MM)));
+}
+
 // Returns null when the stream has nothing renderable (so the caller can fail
-// fast instead of feeding a blank slip).
-export function tsplToEscpos(tspl: string): Buffer | null {
+// fast instead of feeding a blank slip). lineUnits fixes the line spacing so
+// the printed length is known (see EscposTag.heightUnits).
+export function tsplToEscposTag(tspl: string, lineUnits?: number): EscposTag | null {
   const { items, widthDots } = parse(tspl);
   if (items.length === 0) return null;
   items.sort((a, b) => a.y - b.y || a.x - b.x);
+  const tagWidthCols = tagCols(widthDots);
 
   const out: Buffer[] = [Buffer.from([ESC, 0x40])]; // init
+  if (lineUnits !== undefined) out.push(Buffer.from([ESC, 0x33, lineUnits])); // ESC 3 n
   const align = (n: number): void => void out.push(Buffer.from([ESC, 0x61, n]));
   const lf = Buffer.from("\n");
+  let rows = 0;
+  let measurable = lineUnits !== undefined;
 
   for (let i = 0; i < items.length; ) {
     const first = items[i];
     if (first.kind === "qr") {
       align(1);
       out.push(qrRaster(first.data, first.ecc), lf);
+      measurable = false;
       i++;
       continue;
     }
@@ -111,25 +136,29 @@ export function tsplToEscpos(tspl: string): Buffer | null {
       i++;
     }
     const big = row.some((r) => r.big);
-    const cols = big ? Math.floor(TAG_COLS / 2) : TAG_COLS;
-    if (row.length === 1) {
-      align(1);
-      out.push(Buffer.from([GS, 0x21, big ? 0x11 : 0x00]), Buffer.from(row[0].text.slice(0, cols)), lf);
-    } else {
-      // Several items on one row: place each at its x position.
-      align(0);
-      const line = Array<string>(cols).fill(" ");
-      for (const r of row) {
-        const col = Math.min(
-          Math.max(0, Math.round((r.x / widthDots) * cols)),
-          Math.max(0, cols - r.text.length),
-        );
-        for (let k = 0; k < r.text.length && col + k < cols; k++) line[col + k] = r.text[k];
-      }
-      out.push(Buffer.from([GS, 0x21, big ? 0x11 : 0x00]), Buffer.from(line.join("").trimEnd()), lf);
+    if (big) measurable = false;
+    const cols = big ? Math.floor(tagWidthCols / 2) : tagWidthCols;
+    // Every item sits at its own x position, so left/right-aligned fields keep their sides.
+    align(0);
+    const line = Array<string>(cols).fill(" ");
+    for (const r of row) {
+      const col = Math.min(
+        Math.max(0, Math.round((r.x / widthDots) * cols)),
+        Math.max(0, cols - r.text.length),
+      );
+      for (let k = 0; k < r.text.length && col + k < cols; k++) line[col + k] = r.text[k];
     }
+    out.push(Buffer.from([GS, 0x21, big ? 0x11 : 0x00]), Buffer.from(line.join("").trimEnd()), lf);
+    rows++;
   }
   out.push(Buffer.from([GS, 0x21, 0x00]));
   align(0);
-  return Buffer.concat(out);
+  return {
+    bytes: Buffer.concat(out),
+    heightUnits: measurable && lineUnits !== undefined ? rows * lineUnits : null,
+  };
+}
+
+export function tsplToEscpos(tspl: string): Buffer | null {
+  return tsplToEscposTag(tspl)?.bytes ?? null;
 }

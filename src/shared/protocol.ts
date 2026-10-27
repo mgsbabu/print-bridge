@@ -37,9 +37,17 @@ export type PairRequest = z.infer<typeof PairRequest>;
 export const PrinterSettings = z.object({
   /** Print upside-down: for printers mounted/held the other way up (e.g. Bluetooth). */
   rotate180: z.boolean().optional(),
-  /** "none" sends no cut after a tag so a batch prints as one continuous strip. */
-  cutMode: z.enum(["none", "partial"]).optional(),
-  /** Print darkness on the TSPL scale, 0-15 (mapped to ZPL ~SD 0-30 / ESC/POS). */
+  /**
+   * "partial": feed to the cutter then cut after every tag (leaves the
+   * head-to-cutter gap as a blank above each tag).
+   * "none": no cut, one continuous strip.
+   * "tight": gap-free slips on an auto-cutter receipt printer — each tag is cut
+   * one tag late, at its top edge. Needs cutterGapMm.
+   */
+  cutMode: z.enum(["none", "partial", "tight"]).optional(),
+  /** Distance from the print head to the cutter in mm (measure the blank above a printed tag). */
+  cutterGapMm: z.number().min(5).max(100).optional(),
+  /** Print darkness on the TSPL scale, 0-15 (mapped to ZPL ~SD 0-30). Not used for ESC/POS. */
   density: z.number().int().min(0).max(15).optional(),
 });
 export type PrinterSettings = z.infer<typeof PrinterSettings>;

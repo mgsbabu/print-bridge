@@ -35,9 +35,8 @@ describe("applyEscposSettings", () => {
   it("prepends when the stream has no ESC @", () => {
     expect([...applyEscposSettings(Buffer.from("AB"), { rotate180: true }).subarray(0, 3)]).toEqual([0x1b, 0x7b, 0x01]);
   });
-  it("adds GS ( K density after ESC @", () => {
-    const out = applyEscposSettings(body, { density: 15 });
-    expect([...out.subarray(2, 9)]).toEqual([0x1d, 0x28, 0x4b, 0x02, 0x00, 0x30, 8]);
+  it("sends no density command to ESC/POS printers (SRP-275III has none)", () => {
+    expect(applyEscposSettings(body, { density: 15 })).toBe(body);
   });
   it("leaves the stream alone with no settings", () => {
     expect(applyEscposSettings(body, {})).toBe(body);
