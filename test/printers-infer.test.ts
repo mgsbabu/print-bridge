@@ -6,6 +6,7 @@ vi.mock("pdf-to-printer", () => ({
     { name: "Bluetooth-BT-802" },
     { name: "BT802" },
     { name: "Unnati TT 203 DPI Premium" },
+    { name: "BP-Label203" },
     { name: "Some Laser" },
     { name: "TSC TTP-244 Pro" },
     { name: "TSC TE244" },
@@ -33,6 +34,7 @@ describe("printer language inference", () => {
     expect(byName["Bluetooth-BT-802"]).toBe("ESC_POS");
     expect(byName["BT802"]).toBe("ESC_POS");
     expect(byName["Unnati TT 203 DPI Premium"]).toBe("TSPL");
+    expect(byName["BP-Label203"]).toBe("TSPL"); // the Unnati's Bluetooth name
     expect(byName["Some Laser"]).toBe("PDF");
     for (const n of ["TSC TTP-244 Pro", "TSC TE244", "TTP-244M Pro"]) expect(byName[n]).toBe("TSPL");
     expect(byName["GODEX G500"]).toBe("ZPL");
@@ -53,6 +55,7 @@ describe("resolveSettings", () => {
   it("turns rotate180 on by default for Unnati only", async () => {
     const { resolveSettings } = await import("../src/main/dispatcher/printers");
     expect(resolveSettings("Unnati TT 203 DPI Premium")).toEqual({ rotate180: true });
+    expect(resolveSettings("BP-Label203")).toEqual({ rotate180: true });
     expect(resolveSettings("TSC TTP-244")).toEqual({});
   });
 });

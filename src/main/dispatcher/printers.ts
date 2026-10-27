@@ -19,8 +19,11 @@ export function hasAutoCutter(name: string): boolean {
 // web app sends, so it starts with rotate180 on. A saved per-printer setting wins,
 // so a unit that already prints upright (e.g. over Bluetooth) is fixed by turning
 // Rotate 180° off in Printer Settings.
+// The Bluetooth unit shows up in Windows as "BP-Label203" instead of "Unnati ...".
+const UNNATI_RE = /\bunnati\b|\bbp-?label ?203\b/i;
+
 function needsReversedDirection(name: string): boolean {
-  return /\bunnati\b/i.test(name);
+  return UNNATI_RE.test(name);
 }
 
 // Stored settings with the model defaults underneath. Every dispatcher and /printers read this.
@@ -43,7 +46,7 @@ function inferLanguage(name: string): PrintLanguage {
   if (/zebra|^zd|^zt|^gx|^gk|^gc/.test(n)) return "ZPL";
   // TSC TTP-244 / TTP-244 Pro / TE244 / TE244 Pro (also when the queue name drops
   // the "TSC" prefix), Unnati TT 203 DPI: TSPL label printers.
-  if (/\btsc\b|\bttp[- ]?\d|\bte[- ]?\d{3}|^ta\d|^tx\d|^tdp-|\bunnati\b/.test(n)) return "TSPL";
+  if (UNNATI_RE.test(n) || /\btsc\b|\bttp[- ]?\d|\bte[- ]?\d{3}|^ta\d|^tx\d|^tdp-/.test(n)) return "TSPL";
   // Thermal bill/receipt printers (ESC/POS). BT-802 is Bluetooth, not a label printer.
   if (
     BIXOLON_RE.test(n) ||
