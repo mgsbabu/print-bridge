@@ -6,6 +6,8 @@ import crypto from "node:crypto";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { ErrorCode } from "../../shared/error-codes";
+import { rotatePdf180, type SettingsLookup } from "./print-settings";
+import { getPrinterSettings } from "../store";
 import type { PrintRequest, PrintSuccessResponse, PrintFailureResponse } from "../../shared/protocol";
 
 export type PrintFn = (pdf: string, options?: PrintOptions) => Promise<void>;
@@ -23,10 +25,13 @@ const cupsPrint: PrintFn = async (pdf, options) => {
 export async function dispatchPdf(
   req: PrintRequest,
   printFn: PrintFn = process.platform === "win32" ? pdfPrint : cupsPrint,
+  settings: SettingsLookup = getPrinterSettings,
 ): Promise<PrintResult> {
   const tmp = path.join(os.tmpdir(), `bridge-${crypto.randomUUID()}.pdf`);
   try {
-    await fs.writeFile(tmp, Buffer.from(req.payloadBase64, "base64"));
+    let pdf: Buffer = Buffer.from(req.payloadBase64, "base64");
+    if (settings(req.printerName).rotate180) pdf = await rotatePdf180(pdf);
+    await fs.writeFile(tmp, pdf);
     await printFn(tmp, { printer: req.printerName, copies: req.copies });
     return { dispatched: true, copiesAcknowledged: req.copies };
   } catch (err) {

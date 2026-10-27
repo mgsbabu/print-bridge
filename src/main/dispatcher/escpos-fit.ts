@@ -56,7 +56,8 @@ function wrap(text: string, cols: number): string[] {
   return lines;
 }
 
-export function fitToBixolon76(payload: Buffer): Buffer {
+// keepCuts=false (printer cutMode "none") drops every cut so tags print as one strip.
+export function fitToBixolon76(payload: Buffer, keepCuts = true): Buffer {
   const out: number[] = [];
   const st: State = { fontB: false, widthMul: 1 };
   let line: number[] = []; // current pending plain text
@@ -103,12 +104,12 @@ export function fitToBixolon76(payload: Buffer): Buffer {
       // GS V m [n] — normalise every cut to feed-to-cutter + cut.
       const m = payload[i + 2];
       const total = m === 65 || m === 66 ? 4 : 3;
-      out.push(...FEED_AND_CUT);
+      if (keepCuts) out.push(...FEED_AND_CUT);
       i += total;
       continue;
     }
     if (b === ESC && (c === 0x69 || c === 0x6d)) {
-      out.push(...FEED_AND_CUT); // legacy ESC i / ESC m cut
+      if (keepCuts) out.push(...FEED_AND_CUT); // legacy ESC i / ESC m cut
       i += 2;
       continue;
     }
@@ -161,4 +162,24 @@ export function hasCut(payload: Buffer): boolean {
     if (payload[i] === ESC && (payload[i + 1] === 0x69 || payload[i + 1] === 0x6d)) return true;
   }
   return false;
+}
+
+// Loggable shape of a stream: control bytes as hex, printable runs collapsed to
+// "<text×n>" so tag content (payload) never reaches the log. Only the first and
+// last tokens are kept — enough to see leading/trailing feeds and cuts.
+export function describeEscpos(payload: Buffer, head = 24, tail = 12): string {
+  const tokens: string[] = [];
+  for (let i = 0; i < payload.length; ) {
+    let j = i;
+    while (j < payload.length && isPlain(payload[j])) j++;
+    if (j - i >= 3) {
+      tokens.push(`<text×${j - i}>`);
+      i = j;
+    } else {
+      tokens.push(payload[i].toString(16).padStart(2, "0"));
+      i++;
+    }
+  }
+  if (tokens.length <= head + tail) return tokens.join(" ");
+  return `${tokens.slice(0, head).join(" ")} … ${tokens.slice(-tail).join(" ")}`;
 }

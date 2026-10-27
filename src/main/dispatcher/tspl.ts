@@ -5,9 +5,13 @@ import { dispatchEscpos } from "./escpos";
 import { findPrinter, needsReversedDirection } from "./printers";
 import { tsplToEscpos } from "./tspl-to-escpos";
 import { fitTsplBarcodes } from "./tspl-fit";
+import { applyTsplSettings, type SettingsLookup } from "./print-settings";
+import { getPrinterSettings } from "../store";
 import type { PrintResult } from "./pdf";
 
-export type TsplDeps = RawBytesDeps;
+export interface TsplDeps extends RawBytesDeps {
+  settings?: SettingsLookup;
+}
 
 /**
  * Dispatch a TSPL2 stream to a TSC / TSPL-native printer (e.g. TSC TTP-244
@@ -57,6 +61,8 @@ export async function dispatchTspl(req: PrintRequest, deps: TsplDeps = {}): Prom
   if (needsReversedDirection(req.printerName)) {
     out = out.replace(/^(\s*DIRECTION\s+)([01])/im, (_m, p: string, d: string) => p + (d === "1" ? "0" : "1"));
   }
+  // The ESC/POS branch above applies settings in dispatchEscpos; native TSPL does it here.
+  out = applyTsplSettings(out, (deps.settings ?? getPrinterSettings)(req.printerName));
   if (out !== text) req = { ...req, payloadBase64: Buffer.from(out, "utf-8").toString("base64") };
   return dispatchRawBytes(req, deps);
 }

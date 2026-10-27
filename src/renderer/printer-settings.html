@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Printer Settings</title>
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'unsafe-inline'" />
+  <style>
+    body { font: 13px -apple-system, system-ui, sans-serif; margin: 0; padding: 20px;
+           color: #222; background: #f6f6f6; }
+    h1 { font-size: 16px; margin: 0 0 14px; }
+    .printer { background: #fff; border: 1px solid #d8d8d8; border-radius: 6px;
+               padding: 10px 12px; margin-bottom: 10px; }
+    .printer h2 { font-size: 13px; margin: 0 0 8px; }
+    .controls { display: flex; flex-wrap: wrap; gap: 14px; align-items: center; }
+    .controls label { display: flex; gap: 6px; align-items: center; }
+    select, input[type=number] { padding: 3px 6px; font: inherit; }
+    input[type=number] { width: 56px; }
+    .saved { color: #1b5e20; font-size: 12px; margin-left: auto; }
+    .err { color: #b00020; }
+    .hint { color: #666; font-size: 12px; }
+  </style>
+</head>
+<body>
+  <h1>Printer Settings</h1>
+  <p class="hint">Applied to every job sent to that printer. Density: 0-15, blank = printer default.</p>
+  <div id="list"></div>
+  <script src="./printer-settings.js"></script>
+</body>
+</html>

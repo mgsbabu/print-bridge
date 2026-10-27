@@ -2,7 +2,7 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { getPrinters, getDefaultPrinter } from "pdf-to-printer";
 import type { LoadedPrinter, PrintLanguage, NetworkPrinter } from "../../shared/protocol";
-import { getNetworkPrinters } from "../store";
+import { getNetworkPrinters, getPrinterSettings } from "../store";
 
 let osCache: LoadedPrinter[] = [];
 
@@ -93,7 +93,7 @@ export function getCachedPrinters(): LoadedPrinter[] {
     isDefault: false,
     online: true,
   }));
-  return [...osCache, ...network];
+  return [...osCache, ...network].map((p) => ({ ...p, ...getPrinterSettings(p.name) }));
 }
 
 export type PrinterLookup =

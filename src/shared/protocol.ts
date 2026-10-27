@@ -29,15 +29,34 @@ export const PairRequest = z.object({
 });
 export type PairRequest = z.infer<typeof PairRequest>;
 
-export const LoadedPrinter = z.object({
-  name: z.string(),
-  language: z.enum(["PDF", "ZPL", "ESC_POS", "TSPL"]),
-  mediaWidthMm: z.number().nullable(),
-  mediaHeightMm: z.number().nullable(),
-  mediaKind: z.string().nullable(),
-  isDefault: z.boolean(),
-  online: z.boolean(),
+/**
+ * Per-printer tuning kept in the Bridge's own store (set from the prefs
+ * window, never by the web app). Every field is optional: unset means the
+ * printer behaves exactly as before.
+ */
+export const PrinterSettings = z.object({
+  /** Print upside-down: for printers mounted/held the other way up (e.g. Bluetooth). */
+  rotate180: z.boolean().optional(),
+  /** "none" sends no cut after a tag so a batch prints as one continuous strip. */
+  cutMode: z.enum(["none", "partial"]).optional(),
+  /** Print darkness on the TSPL scale, 0-15 (mapped to ZPL ~SD 0-30 / ESC/POS). */
+  density: z.number().int().min(0).max(15).optional(),
 });
+export type PrinterSettings = z.infer<typeof PrinterSettings>;
+
+// The three settings are additive and optional so a backend that predates them
+// keeps parsing /printers and /health unchanged.
+export const LoadedPrinter = z
+  .object({
+    name: z.string(),
+    language: z.enum(["PDF", "ZPL", "ESC_POS", "TSPL"]),
+    mediaWidthMm: z.number().nullable(),
+    mediaHeightMm: z.number().nullable(),
+    mediaKind: z.string().nullable(),
+    isDefault: z.boolean(),
+    online: z.boolean(),
+  })
+  .merge(PrinterSettings);
 export type LoadedPrinter = z.infer<typeof LoadedPrinter>;
 
 export const HealthError = z.object({

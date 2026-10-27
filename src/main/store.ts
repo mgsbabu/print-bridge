@@ -1,6 +1,6 @@
 import Store from "electron-store";
 import { safeStorage } from "electron";
-import type { NetworkPrinter } from "../shared/protocol";
+import type { NetworkPrinter, PrinterSettings } from "../shared/protocol";
 
 export interface PairingRecord {
   tenantId: number;
@@ -25,6 +25,8 @@ interface PersistedShape {
     tenantOrigins?: string[];
   };
   networkPrinters?: NetworkPrinter[];
+  /** Keyed by printer name; covers OS (incl. Bluetooth) and network printers. */
+  printerSettings?: Record<string, PrinterSettings>;
 }
 
 const store = new Store<PersistedShape>({ name: "bridge" });
@@ -72,4 +74,14 @@ export function removeNetworkPrinter(name: string): void {
     "networkPrinters",
     getNetworkPrinters().filter((x) => x.name !== name),
   );
+}
+
+export function getPrinterSettings(name: string): PrinterSettings {
+  return store.get("printerSettings")?.[name] ?? {};
+}
+
+export function setPrinterSettings(name: string, settings: PrinterSettings): void {
+  const all = { ...(store.get("printerSettings") ?? {}) };
+  all[name] = settings;
+  store.set("printerSettings", all);
 }

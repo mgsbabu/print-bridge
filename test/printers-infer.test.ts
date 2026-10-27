@@ -20,7 +20,7 @@ vi.mock("pdf-to-printer", () => ({
   ],
   getDefaultPrinter: async () => null,
 }));
-vi.mock("../src/main/store", () => ({ getNetworkPrinters: () => [] }));
+vi.mock("../src/main/store", () => ({ getNetworkPrinters: () => [], getPrinterSettings: () => ({}) }));
 
 import { refreshPrinters, hasAutoCutter } from "../src/main/dispatcher/printers";
 

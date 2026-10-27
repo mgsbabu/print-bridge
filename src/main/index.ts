@@ -1,16 +1,24 @@
 import { app, Menu, Tray, Notification, nativeImage, ipcMain } from "electron";
 import path from "node:path";
 import { startServer, BRIDGE_PORT, type JobRecorder } from "./server";
-import { getPairing, setPairing, clearPairing, addNetworkPrinter, type PairingRecord } from "./store";
+import {
+  getPairing,
+  setPairing,
+  clearPairing,
+  addNetworkPrinter,
+  setPrinterSettings,
+  type PairingRecord,
+} from "./store";
 import { openPairingWindow } from "./pair-window";
 import { openNetworkPrinterWindow } from "./network-printer-window";
+import { openPrinterSettingsWindow } from "./printer-settings-window";
 import { openLogsWindow } from "./logs-window";
 import { refreshPrinters, getCachedPrinters } from "./dispatcher/printers";
 import { dispatchPdf } from "./dispatcher/pdf";
 import { dispatchZpl } from "./dispatcher/zpl";
 import { dispatchEscpos } from "./dispatcher/escpos";
 import { dispatchTspl } from "./dispatcher/tspl";
-import { NetworkPrinter } from "../shared/protocol";
+import { NetworkPrinter, PrinterSettings } from "../shared/protocol";
 import { openJobsDb } from "./jobs/db";
 import { JobsRepository } from "./jobs/repository";
 import { startAutoUpdate } from "./updater";
@@ -64,6 +72,7 @@ function buildMenu(): Menu {
       click: () => void reloadPrintersAndRefresh(),
     },
     { label: "Add Network Printer…", click: () => openNetworkPrinterWindow() },
+    { label: "Printer Settings…", click: () => openPrinterSettingsWindow() },
     { label: "Open Logs…", click: () => openLogsWindow() },
     { type: "separator" },
     { label: "Quit", click: () => app.quit() },
@@ -115,6 +124,17 @@ app.whenReady().then(() => {
       return { added: true } as const;
     } catch (err) {
       return { error: err instanceof Error ? err.message : "invalid network printer" } as const;
+    }
+  });
+
+  ipcMain.handle("list-printer-settings", () => getCachedPrinters());
+  ipcMain.handle("set-printer-settings", (_event, name: unknown, payload: unknown) => {
+    try {
+      if (typeof name !== "string" || name === "") throw new Error("invalid printer name");
+      setPrinterSettings(name, PrinterSettings.parse(payload));
+      return { saved: true } as const;
+    } catch (err) {
+      return { error: err instanceof Error ? err.message : "invalid printer settings" } as const;
     }
   });
 

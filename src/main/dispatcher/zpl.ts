@@ -2,10 +2,13 @@ import { validateZpl, type LabelaryResult } from "../labelary";
 import { ErrorCode } from "../../shared/error-codes";
 import type { PrintRequest } from "../../shared/protocol";
 import { dispatchRawBytes, type RawBytesDeps } from "./raw-bytes";
+import { applyZplSettings, type SettingsLookup } from "./print-settings";
+import { getPrinterSettings } from "../store";
 import type { PrintResult } from "./pdf";
 
 export interface ZplDeps extends RawBytesDeps {
   validate?: (zpl: string) => Promise<LabelaryResult>;
+  settings?: SettingsLookup;
 }
 
 export async function dispatchZpl(req: PrintRequest, deps: ZplDeps = {}): Promise<PrintResult> {
@@ -20,5 +23,7 @@ export async function dispatchZpl(req: PrintRequest, deps: ZplDeps = {}): Promis
       errorCode: ErrorCode.BAD_PAYLOAD,
     };
   }
+  const out = applyZplSettings(zpl, (deps.settings ?? getPrinterSettings)(req.printerName));
+  if (out !== zpl) req = { ...req, payloadBase64: Buffer.from(out, "utf-8").toString("base64") };
   return dispatchRawBytes(req, deps);
 }
