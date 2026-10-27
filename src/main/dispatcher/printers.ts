@@ -22,6 +22,13 @@ export function hasAutoCutter(name: string): boolean {
 // The Bluetooth unit shows up in Windows as "BP-Label203" instead of "Unnati ...".
 const UNNATI_RE = /\bunnati\b|\bbp-?label ?203\b/i;
 
+// The Bluetooth unit's firmware ignores the DIRECTION command (checked in the Logs
+// route: DIRECTION 1 and 0 print identically), so for it Rotate 180° rewrites the
+// label's objects instead of flipping DIRECTION.
+export function ignoresDirection(name: string): boolean {
+  return /\bbp-?label ?203\b/i.test(name);
+}
+
 function needsReversedDirection(name: string): boolean {
   return UNNATI_RE.test(name);
 }

@@ -2,7 +2,8 @@ import { ErrorCode } from "../../shared/error-codes";
 import type { PrintRequest } from "../../shared/protocol";
 import { dispatchRawBytes, type RawBytesDeps } from "./raw-bytes";
 import { dispatchEscpos } from "./escpos";
-import { findPrinter, resolveSettings } from "./printers";
+import { findPrinter, ignoresDirection, resolveSettings } from "./printers";
+import { rotateTspl180 } from "./tspl-rotate";
 import { tsplToEscpos, tsplToEscposTag } from "./tspl-to-escpos";
 import { LINE_UNITS, dispatchTightTag } from "./tight-cut";
 import { fitTsplBarcodes } from "./tspl-fit";
@@ -76,11 +77,22 @@ export async function dispatchTspl(req: PrintRequest, deps: TsplDeps = {}): Prom
 
   let out = fitTsplBarcodes(text);
   // The ESC/POS branch above applies settings in dispatchEscpos; native TSPL does it here.
-  const settings = (deps.settings ?? resolveSettings)(req.printerName);
+  let settings = (deps.settings ?? resolveSettings)(req.printerName);
+  if (settings.rotate180 && ignoresDirection(req.printerName)) {
+    // This printer ignores DIRECTION, so rotate the objects themselves instead.
+    const rotated = rotateTspl180(out);
+    if (rotated) {
+      out = rotated.tspl;
+      settings = { ...settings, rotate180: false }; // already done; don't flip DIRECTION on top
+      trace(`rotate180=on: ${rotated.objects} objects rotated 180 in the label (printer ignores DIRECTION)`);
+    } else {
+      trace("rotate180=on: label has objects that can't be rotated, using DIRECTION instead");
+    }
+  }
   const directionBefore = /^\s*DIRECTION\s+([01])/im.exec(out)?.[1] ?? "none";
   out = applyTsplSettings(out, settings);
   const directionAfter = /^\s*DIRECTION\s+([01])/im.exec(out)?.[1] ?? "none";
-  trace(`TSPL sent as-is; rotate180=${settings.rotate180 ? "on" : "off"}, DIRECTION ${directionBefore} -> ${directionAfter}`);
+  trace(`TSPL sent; rotate180=${settings.rotate180 ? "on" : "off"}, DIRECTION ${directionBefore} -> ${directionAfter}`);
   if (out !== text) req = { ...req, payloadBase64: Buffer.from(out, "utf-8").toString("base64") };
   return dispatchRawBytes(req, deps);
 }
