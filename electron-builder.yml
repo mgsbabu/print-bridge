@@ -6,12 +6,24 @@ directories:
   output: release
   buildResources: assets
 
+# Smaller installer: English-only Chromium locales and no build-time-only files
+# from node_modules (maps, markdown, typings, SQLite/printer C sources).
+electronLanguages:
+  - en-US
+compression: maximum
+
 files:
   - dist/**/*
   - src/renderer/**/*
   - assets/**/*
   - node_modules/**/*
   - package.json
+  - "!**/*.map"
+  - "!**/*.md"
+  - "!**/*.d.ts"
+  - "!node_modules/better-sqlite3/deps/**"
+  - "!node_modules/better-sqlite3/src/**"
+  - "!node_modules/@grandchef/node-printer/src/**"
 
 asarUnpack:
   - node_modules/better-sqlite3/**
@@ -33,12 +45,16 @@ win:
     - target: nsis
       arch:
         - x64
+        - ia32
   icon: assets/icon.ico
   signAndEditExecutable: true
   signtoolOptions:
     publisherName: FabPos Technologies Pvt Ltd
 
 nsis:
+  buildUniversalInstaller: false
+  # One installer per architecture (a combined x64+ia32 file would be ~2x the size).
+  artifactName: "TailorApp-Print-Bridge-Setup-${version}-${arch}.${ext}"
   oneClick: false
   perMachine: false
   allowToChangeInstallationDirectory: true

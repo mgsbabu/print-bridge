@@ -41,7 +41,7 @@ jobs:
           # windows-2025 image breaks node-gyp's Visual Studio detection
           # when @electron/rebuild compiles the native @grandchef/node-printer
           # module ("Could not find any Visual Studio installation to use").
-          win='{"os":"windows-2022","platform":"win","ebargs":"--win"}'
+          win='{"os":"windows-2022","platform":"win","ebargs":"--win --x64 --ia32"}'
           linux='{"os":"ubuntu-latest","platform":"linux","ebargs":"--linux"}'
           sel="all"
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
