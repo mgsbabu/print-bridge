@@ -15,7 +15,7 @@ function escapeHtml(s) {
 
 function render(jobs) {
   if (!jobs || jobs.length === 0) {
-    rowsEl.innerHTML = '<tr><td colspan="6" class="empty">No jobs yet.</td></tr>';
+    rowsEl.innerHTML = '<tr><td colspan="7" class="empty">No jobs yet.</td></tr>';
     metaEl.textContent = "0 jobs · refreshes every 5s";
     return;
   }
@@ -31,6 +31,7 @@ function render(jobs) {
         <td>${copies}</td>
         <td class="status-${escapeHtml(j.status)}">${escapeHtml(j.status)}</td>
         <td class="err" title="${escapeHtml(j.error ?? "")}">${escapeHtml(j.error ?? "")}</td>
+        <td class="note" title="${escapeHtml(j.note ?? "")}">${escapeHtml(j.note ?? "")}</td>
       </tr>`;
     })
     .join("");

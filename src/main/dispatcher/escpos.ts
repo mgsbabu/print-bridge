@@ -5,6 +5,7 @@ import { describeEscpos, fitToBixolon76, hasCut } from "./escpos-fit";
 import { applyEscposSettings, type SettingsLookup } from "./print-settings";
 import { resolveSettings } from "./printers";
 import { log } from "../logger";
+import { trace } from "../job-trace";
 import type { PrintResult } from "./pdf";
 
 export interface EscposDeps extends RawBytesDeps {
@@ -29,6 +30,7 @@ export function dispatchEscpos(req: PrintRequest, deps: EscposDeps = {}): Promis
     if (cut && !hasCut(payload)) payload = Buffer.concat([payload, FEED_AND_CUT]);
   }
   payload = applyEscposSettings(payload, settings);
+  trace(`ESC/POS ${hasAutoCutter(req.printerName) ? `auto-cutter, cut=${settings.cutMode ?? "partial"}` : "passthrough"}; rotate180=${settings.rotate180 ? "on" : "off"}`);
   if (hasAutoCutter(req.printerName)) {
     log.debug({ printer: req.printerName, bytes: payload.length, shape: describeEscpos(payload) }, "escpos sent");
   }

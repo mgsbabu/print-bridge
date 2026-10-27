@@ -2,6 +2,7 @@ import type { PrintRequest, PrinterSettings } from "../../shared/protocol";
 import { dispatchRawBytes, type RawBytesDeps } from "./raw-bytes";
 import { applyEscposSettings } from "./print-settings";
 import { log } from "../logger";
+import { trace } from "../job-trace";
 import type { PrintResult } from "./pdf";
 
 // Gap-free tags on an auto-cutter receipt printer (BIXOLON SRP-275III).
@@ -55,6 +56,7 @@ export async function dispatchTightTag(
 ): Promise<PrintResult | null> {
   const payload = tightPayload(applyEscposSettings(content, settings), heightUnits, settings.cutterGapMm ?? 0);
   if (!payload) return null;
+  trace(`tight cut: tag ${heightUnits} units, feed ${mmToUnits(settings.cutterGapMm ?? 0) - heightUnits} units, then cut; last tag is flushed after ${IDLE_FLUSH_MS / 1000}s idle`);
 
   clearTimeout(pending.get(req.printerName)?.timer);
   const result = await dispatchRawBytes({ ...req, language: "ESC_POS", payloadBase64: payload.toString("base64") }, deps);

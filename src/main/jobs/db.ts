@@ -16,9 +16,16 @@ export const JOBS_SCHEMA = `
   CREATE INDEX IF NOT EXISTS idx_jobs_ts ON jobs(ts DESC);
 `;
 
+// Databases created before the Route note existed.
+function addNoteColumn(db: Database.Database): void {
+  const cols = db.prepare("PRAGMA table_info(jobs)").all() as { name: string }[];
+  if (!cols.some((c) => c.name === "note")) db.exec("ALTER TABLE jobs ADD COLUMN note TEXT");
+}
+
 export function openJobsDb(filename?: string): Database.Database {
   const dbPath = filename ?? path.join(app.getPath("userData"), "jobs.db");
   const db = new Database(dbPath);
   db.exec(JOBS_SCHEMA);
+  addNoteColumn(db);
   return db;
 }

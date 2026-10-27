@@ -17,10 +17,11 @@ import { buildZplSample, buildEscposSample, buildTsplSample } from "./test-print
 import type { PrintLanguage } from "../shared/protocol";
 import type { JobStatus } from "./jobs/repository";
 import type { ErrorRing } from "./error-ring";
+import { withTrace } from "./job-trace";
 
 export interface JobRecorder {
   start(printer: string, language: PrintLanguage, copiesRequested: number): number;
-  finish(id: number, copiesAcknowledged: number, status: JobStatus, error: string | null): void;
+  finish(id: number, copiesAcknowledged: number, status: JobStatus, error: string | null, note?: string): void;
 }
 
 export const BRIDGE_PORT = 7755;
@@ -140,14 +141,20 @@ export function createApp(deps: ServerDeps): Express {
   async function recordedDispatch(body: PrintRequest): Promise<PrintResult> {
     const jobId = deps.jobRecorder?.start(body.printerName, body.language, body.copies);
     let result: PrintResult;
+    let notes: string[] = [];
+    const traced = async (run: () => Promise<PrintResult>): Promise<PrintResult> => {
+      const t = await withTrace(run);
+      notes = t.notes;
+      return t.result;
+    };
     if (body.language === "PDF") {
-      result = await deps.dispatchPdf(body);
+      result = await traced(() => deps.dispatchPdf(body));
     } else if (body.language === "ZPL") {
-      result = await deps.dispatchZpl(body);
+      result = await traced(() => deps.dispatchZpl(body));
     } else if (body.language === "ESC_POS") {
-      result = await deps.dispatchEscpos(body);
+      result = await traced(() => deps.dispatchEscpos(body));
     } else if (body.language === "TSPL") {
-      result = await deps.dispatchTspl(body);
+      result = await traced(() => deps.dispatchTspl(body));
     } else {
       const failure = {
         dispatched: false as const,
@@ -166,6 +173,7 @@ export function createApp(deps: ServerDeps): Express {
         result.copiesAcknowledged,
         result.dispatched ? "DISPATCHED" : "FAILED",
         result.dispatched ? null : result.error,
+        ...(notes.length > 0 ? [notes.join("; ")] : []),
       );
     }
     return result;

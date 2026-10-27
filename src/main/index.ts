@@ -146,7 +146,8 @@ app.whenReady().then(() => {
 
   const jobRecorder: JobRecorder = {
     start: (printer, language, copies) => jobsRepo!.insertJob(printer, language, copies),
-    finish: (id, copies, status, error) => jobsRepo?.updateJobResult(id, copies, status, error),
+    finish: (id, copies, status, error, note) =>
+      jobsRepo?.updateJobResult(id, copies, status, error, note ?? null),
   };
 
   const serverDeps = {

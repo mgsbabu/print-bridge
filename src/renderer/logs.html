@@ -21,6 +21,7 @@
     .status-QUEUED     { color: #777; }
     .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
     .empty { padding: 40px; text-align: center; color: #777; }
+    .note { color: #444; font-size: 11px; max-width: 360px; }
     .err { color: #b00020; font-size: 11px; max-width: 280px;
            white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   </style>
@@ -39,10 +40,11 @@
         <th>Copies</th>
         <th>Status</th>
         <th>Error</th>
+        <th>Route</th>
       </tr>
     </thead>
     <tbody id="rows">
-      <tr><td colspan="6" class="empty">Loading…</td></tr>
+      <tr><td colspan="7" class="empty">Loading…</td></tr>
     </tbody>
   </table>
   <script src="./logs.js"></script>

@@ -7,6 +7,7 @@ import { tsplToEscpos, tsplToEscposTag } from "./tspl-to-escpos";
 import { LINE_UNITS, dispatchTightTag } from "./tight-cut";
 import { fitTsplBarcodes } from "./tspl-fit";
 import { applyTsplSettings, type SettingsLookup } from "./print-settings";
+import { trace } from "../job-trace";
 import type { PrintResult } from "./pdf";
 
 export interface TsplDeps extends RawBytesDeps {
@@ -46,14 +47,20 @@ export async function dispatchTspl(req: PrintRequest, deps: TsplDeps = {}): Prom
   const target = (deps.lookup ?? findPrinter)(req.printerName);
   if (target?.record.language === "ESC_POS") {
     const settings = (deps.settings ?? resolveSettings)(req.printerName);
+    trace(`TSPL tag to ESC/POS printer; cut=${settings.cutMode ?? "partial"}, gap=${settings.cutterGapMm ?? "not set"}`);
     if (settings.cutMode === "tight" && settings.cutterGapMm !== undefined) {
       // Gap-free slips: cut each tag at its own top edge. Falls through to the normal
       // feed-then-cut path when the tag's length can't be known or exceeds the gap.
       const tag = tsplToEscposTag(text, LINE_UNITS);
-      if (tag?.heightUnits) {
+      if (!tag?.heightUnits) {
+        trace("tight skipped: tag has a QR code or double-size row, so its length is unknown");
+      } else {
         const tight = await dispatchTightTag(req, tag.bytes, tag.heightUnits, settings, deps);
         if (tight) return tight;
+        trace("tight skipped: tag is taller than the head-to-cutter gap");
       }
+    } else if (settings.cutMode === "tight") {
+      trace("tight skipped: head-to-cutter gap not set");
     }
     const escpos = tsplToEscpos(text);
     if (!escpos) {
@@ -69,7 +76,11 @@ export async function dispatchTspl(req: PrintRequest, deps: TsplDeps = {}): Prom
 
   let out = fitTsplBarcodes(text);
   // The ESC/POS branch above applies settings in dispatchEscpos; native TSPL does it here.
-  out = applyTsplSettings(out, (deps.settings ?? resolveSettings)(req.printerName));
+  const settings = (deps.settings ?? resolveSettings)(req.printerName);
+  const directionBefore = /^\s*DIRECTION\s+([01])/im.exec(out)?.[1] ?? "none";
+  out = applyTsplSettings(out, settings);
+  const directionAfter = /^\s*DIRECTION\s+([01])/im.exec(out)?.[1] ?? "none";
+  trace(`TSPL sent as-is; rotate180=${settings.rotate180 ? "on" : "off"}, DIRECTION ${directionBefore} -> ${directionAfter}`);
   if (out !== text) req = { ...req, payloadBase64: Buffer.from(out, "utf-8").toString("base64") };
   return dispatchRawBytes(req, deps);
 }

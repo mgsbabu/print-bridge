@@ -105,3 +105,25 @@ describe("dispatchTspl tight mode", () => {
     expect([...sent[0].subarray(-4)]).toEqual([0x1d, 0x56, 0x42, 0x03]);
   });
 });
+
+describe("job route notes", () => {
+  it("records which path a Bixolon tag took, without payload text", async () => {
+    const { withTrace } = await import("../src/main/job-trace");
+    const lookup = (): PrinterLookup => ({
+      kind: "os",
+      record: { name: "BIXOLON SRP-275III", language: "ESC_POS", mediaWidthMm: 76, mediaHeightMm: null, mediaKind: null, isDefault: false, online: true },
+    });
+    const run = (settings: () => Record<string, unknown>) =>
+      withTrace(() =>
+        dispatchTspl(
+          { printerName: "BIXOLON SRP-275III", language: "TSPL", payloadBase64: Buffer.from(TAG).toString("base64"), copies: 1, jobRef: 1 },
+          { sendLocalRaw: async () => undefined, lookup, settings },
+        ),
+      );
+    const tight = await run(() => ({ cutMode: "tight", cutterGapMm: 30 }));
+    expect(tight.notes.join(";")).toContain("tight cut");
+    expect(tight.notes.join(";")).not.toContain("DM1406");
+    const noGap = await run(() => ({ cutMode: "tight" }));
+    expect(noGap.notes.join(";")).toContain("tight skipped: head-to-cutter gap not set");
+  });
+});

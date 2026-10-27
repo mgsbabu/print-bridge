@@ -12,6 +12,7 @@ export interface JobRow {
   copiesAcknowledged: number;
   status: JobStatus;
   error: string | null;
+  note: string | null;
 }
 
 export interface SuccessRate {
@@ -33,13 +34,13 @@ export class JobsRepository {
       "INSERT INTO jobs (ts, printer, language, copies_requested, status) VALUES (?, ?, ?, ?, 'QUEUED')",
     );
     this.updateStmt = db.prepare(
-      "UPDATE jobs SET copies_acknowledged = ?, status = ?, error = ? WHERE id = ?",
+      "UPDATE jobs SET copies_acknowledged = ?, status = ?, error = ?, note = ? WHERE id = ?",
     );
     this.listStmt = db.prepare(
       `SELECT id, ts, printer, language,
               copies_requested AS copiesRequested,
               copies_acknowledged AS copiesAcknowledged,
-              status, error
+              status, error, note
        FROM jobs ORDER BY ts DESC LIMIT ?`,
     );
     this.rateStmt = db.prepare(
@@ -59,8 +60,9 @@ export class JobsRepository {
     copiesAcknowledged: number,
     status: JobStatus,
     error: string | null,
+    note: string | null = null,
   ): void {
-    this.updateStmt.run(copiesAcknowledged, status, error, id);
+    this.updateStmt.run(copiesAcknowledged, status, error, note, id);
   }
 
   listRecentJobs(limit = 100): JobRow[] {
