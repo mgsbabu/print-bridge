@@ -2,12 +2,11 @@ import { ErrorCode } from "../../shared/error-codes";
 import type { PrintRequest } from "../../shared/protocol";
 import { dispatchRawBytes, type RawBytesDeps } from "./raw-bytes";
 import { dispatchEscpos } from "./escpos";
-import { findPrinter, needsReversedDirection } from "./printers";
+import { findPrinter, resolveSettings } from "./printers";
 import { tsplToEscpos, tsplToEscposTag } from "./tspl-to-escpos";
 import { LINE_UNITS, dispatchTightTag } from "./tight-cut";
 import { fitTsplBarcodes } from "./tspl-fit";
 import { applyTsplSettings, type SettingsLookup } from "./print-settings";
-import { getPrinterSettings } from "../store";
 import type { PrintResult } from "./pdf";
 
 export interface TsplDeps extends RawBytesDeps {
@@ -29,8 +28,8 @@ export interface TsplDeps extends RawBytesDeps {
  * <ul>
  *   <li>Receipt printers (ESC/POS, e.g. BIXOLON) can't read TSPL and would print
  *       the commands as text, so the tag is re-rendered as ESC/POS (with cut).</li>
- *   <li>Unnati prints with the opposite orientation to TSC, so DIRECTION is
- *       flipped to keep the tag upright.</li>
+ *   <li>Orientation: the printer's rotate180 setting flips DIRECTION. It is on by
+ *       default for Unnati, which prints the opposite way to TSC.</li>
  * </ul>
  */
 export async function dispatchTspl(req: PrintRequest, deps: TsplDeps = {}): Promise<PrintResult> {
@@ -46,7 +45,7 @@ export async function dispatchTspl(req: PrintRequest, deps: TsplDeps = {}): Prom
 
   const target = (deps.lookup ?? findPrinter)(req.printerName);
   if (target?.record.language === "ESC_POS") {
-    const settings = (deps.settings ?? getPrinterSettings)(req.printerName);
+    const settings = (deps.settings ?? resolveSettings)(req.printerName);
     if (settings.cutMode === "tight" && settings.cutterGapMm !== undefined) {
       // Gap-free slips: cut each tag at its own top edge. Falls through to the normal
       // feed-then-cut path when the tag's length can't be known or exceeds the gap.
@@ -69,11 +68,8 @@ export async function dispatchTspl(req: PrintRequest, deps: TsplDeps = {}): Prom
   }
 
   let out = fitTsplBarcodes(text);
-  if (needsReversedDirection(req.printerName)) {
-    out = out.replace(/^(\s*DIRECTION\s+)([01])/im, (_m, p: string, d: string) => p + (d === "1" ? "0" : "1"));
-  }
   // The ESC/POS branch above applies settings in dispatchEscpos; native TSPL does it here.
-  out = applyTsplSettings(out, (deps.settings ?? getPrinterSettings)(req.printerName));
+  out = applyTsplSettings(out, (deps.settings ?? resolveSettings)(req.printerName));
   if (out !== text) req = { ...req, payloadBase64: Buffer.from(out, "utf-8").toString("base64") };
   return dispatchRawBytes(req, deps);
 }

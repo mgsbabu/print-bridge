@@ -3,7 +3,7 @@ import { ErrorCode } from "../../shared/error-codes";
 import type { PrintRequest } from "../../shared/protocol";
 import { dispatchRawBytes, type RawBytesDeps } from "./raw-bytes";
 import { applyZplSettings, type SettingsLookup } from "./print-settings";
-import { getPrinterSettings } from "../store";
+import { resolveSettings } from "./printers";
 import type { PrintResult } from "./pdf";
 
 export interface ZplDeps extends RawBytesDeps {
@@ -23,7 +23,7 @@ export async function dispatchZpl(req: PrintRequest, deps: ZplDeps = {}): Promis
       errorCode: ErrorCode.BAD_PAYLOAD,
     };
   }
-  const out = applyZplSettings(zpl, (deps.settings ?? getPrinterSettings)(req.printerName));
+  const out = applyZplSettings(zpl, (deps.settings ?? resolveSettings)(req.printerName));
   if (out !== zpl) req = { ...req, payloadBase64: Buffer.from(out, "utf-8").toString("base64") };
   return dispatchRawBytes(req, deps);
 }

@@ -1,7 +1,7 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { getPrinters, getDefaultPrinter } from "pdf-to-printer";
-import type { LoadedPrinter, PrintLanguage, NetworkPrinter } from "../../shared/protocol";
+import type { LoadedPrinter, PrintLanguage, NetworkPrinter, PrinterSettings } from "../../shared/protocol";
 import { getNetworkPrinters, getPrinterSettings } from "../store";
 
 let osCache: LoadedPrinter[] = [];
@@ -16,9 +16,17 @@ export function hasAutoCutter(name: string): boolean {
 }
 
 // Unnati TT 203 DPI prints TSPL rotated 180° with the TSC-style DIRECTION 1 the
-// web app sends, so the TSPL dispatcher flips DIRECTION for it.
-export function needsReversedDirection(name: string): boolean {
+// web app sends, so it starts with rotate180 on. A saved per-printer setting wins,
+// so a unit that already prints upright (e.g. over Bluetooth) is fixed by turning
+// Rotate 180° off in Printer Settings.
+function needsReversedDirection(name: string): boolean {
   return /\bunnati\b/i.test(name);
+}
+
+// Stored settings with the model defaults underneath. Every dispatcher and /printers read this.
+export function resolveSettings(name: string): PrinterSettings {
+  const defaults: PrinterSettings = needsReversedDirection(name) ? { rotate180: true } : {};
+  return { ...defaults, ...getPrinterSettings(name) };
 }
 
 // The SRP-275III is an impact printer that only takes a 76 mm roll. Reported in
@@ -93,7 +101,7 @@ export function getCachedPrinters(): LoadedPrinter[] {
     isDefault: false,
     online: true,
   }));
-  return [...osCache, ...network].map((p) => ({ ...p, ...getPrinterSettings(p.name) }));
+  return [...osCache, ...network].map((p) => ({ ...p, ...resolveSettings(p.name) }));
 }
 
 export type PrinterLookup =

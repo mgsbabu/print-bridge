@@ -48,3 +48,11 @@ describe("printer language inference", () => {
     expect(hasAutoCutter("Star-TSP-USB")).toBe(false);
   });
 });
+
+describe("resolveSettings", () => {
+  it("turns rotate180 on by default for Unnati only", async () => {
+    const { resolveSettings } = await import("../src/main/dispatcher/printers");
+    expect(resolveSettings("Unnati TT 203 DPI Premium")).toEqual({ rotate180: true });
+    expect(resolveSettings("TSC TTP-244")).toEqual({});
+  });
+});

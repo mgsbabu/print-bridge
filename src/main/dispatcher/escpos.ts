@@ -3,7 +3,7 @@ import { dispatchRawBytes, type RawBytesDeps } from "./raw-bytes";
 import { hasAutoCutter } from "./printers";
 import { describeEscpos, fitToBixolon76, hasCut } from "./escpos-fit";
 import { applyEscposSettings, type SettingsLookup } from "./print-settings";
-import { getPrinterSettings } from "../store";
+import { resolveSettings } from "./printers";
 import { log } from "../logger";
 import type { PrintResult } from "./pdf";
 
@@ -15,7 +15,7 @@ export interface EscposDeps extends RawBytesDeps {
 const FEED_AND_CUT = Buffer.from([0x1d, 0x56, 0x42, 0x03]);
 
 export function dispatchEscpos(req: PrintRequest, deps: EscposDeps = {}): Promise<PrintResult> {
-  const settings = (deps.settings ?? getPrinterSettings)(req.printerName);
+  const settings = (deps.settings ?? resolveSettings)(req.printerName);
   let payload: Buffer = Buffer.from(req.payloadBase64, "base64");
 
   // Auto-cutter printers (BIXOLON SRP-275III, 76 mm roll): word-wrap to the

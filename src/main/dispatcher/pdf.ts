@@ -7,7 +7,7 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { ErrorCode } from "../../shared/error-codes";
 import { rotatePdf180, type SettingsLookup } from "./print-settings";
-import { getPrinterSettings } from "../store";
+import { resolveSettings } from "./printers";
 import type { PrintRequest, PrintSuccessResponse, PrintFailureResponse } from "../../shared/protocol";
 
 export type PrintFn = (pdf: string, options?: PrintOptions) => Promise<void>;
@@ -25,7 +25,7 @@ const cupsPrint: PrintFn = async (pdf, options) => {
 export async function dispatchPdf(
   req: PrintRequest,
   printFn: PrintFn = process.platform === "win32" ? pdfPrint : cupsPrint,
-  settings: SettingsLookup = getPrinterSettings,
+  settings: SettingsLookup = resolveSettings,
 ): Promise<PrintResult> {
   const tmp = path.join(os.tmpdir(), `bridge-${crypto.randomUUID()}.pdf`);
   try {
