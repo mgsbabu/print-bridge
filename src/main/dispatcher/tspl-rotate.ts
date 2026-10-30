@@ -8,6 +8,8 @@
 // rotated this way (BITMAP, BLOCK, ...) makes the whole job fall back to the
 // DIRECTION flip: a half-rotated label would be worse than none.
 
+import { create as createQr } from "qrcode";
+
 const DOTS_PER_MM = 8; // 203 dpi
 
 const SETUP_COMMANDS = new Set([
@@ -17,7 +19,9 @@ const SETUP_COMMANDS = new Set([
 ]);
 
 const TEXT_RE = /^(TEXT\s+)(-?\d+)(\s*,\s*)(-?\d+)(\s*,\s*"[^"]*"\s*,\s*)(\d+)(.*)$/i;
-const QR_RE = /^(QRCODE\s+)(-?\d+)(\s*,\s*)(-?\d+)(\s*,\s*\w+\s*,\s*\d+\s*,\s*\w+\s*,\s*)(\d+)(.*)$/i;
+// QRCODE x,y,ECC,cell,mode,rotation,...,"data": groups 6/8/10 are ECC, cell width, rotation.
+const QR_RE =
+  /^(QRCODE\s+)(-?\d+)(\s*,\s*)(-?\d+)(\s*,\s*)(\w+)(\s*,\s*)(\d+)(\s*,\s*\w+\s*,\s*)(\d+)(.*)$/i;
 const BARCODE_RE =
   /^(BARCODE\s+)(-?\d+)(\s*,\s*)(-?\d+)(\s*,\s*"[^"]*"\s*,\s*\d+\s*,\s*\d+\s*,\s*)(\d+)(.*)$/i;
 const BAR_RE = /^(BAR\s+)(-?\d+)(\s*,\s*)(-?\d+)(\s*,\s*)(-?\d+)(\s*,\s*)(-?\d+)(.*)$/i;
@@ -51,7 +55,28 @@ export function rotateTspl180(tspl: string): RotateResult | null {
       out.push(raw);
       continue;
     }
-    let m = TEXT_RE.exec(trimmed) ?? QR_RE.exec(trimmed) ?? BARCODE_RE.exec(trimmed);
+    // A QR code is square and scans the same upside down, so it is NOT rotated: it is
+    // drawn unrotated with its top-left corner at the mirrored position. (Rotating a
+    // QR about its anchor drew it displaced on the Bluetooth unit, over the order no.)
+    const qr = QR_RE.exec(trimmed);
+    if (qr) {
+      const data = /"((?:[^"\\]|\\.)*)"/.exec(qr[11])?.[1];
+      const ecc = qr[6].toUpperCase();
+      if (qr[10] !== "0" || data === undefined || !"LMQH".includes(ecc)) return null;
+      let modules: number;
+      try {
+        modules = createQr(data.replace(/\\(.)/g, "$1"), {
+          errorCorrectionLevel: ecc as "L" | "M" | "Q" | "H",
+        }).modules.size;
+      } catch {
+        return null; // too long for a QR symbol: let the printer deal with it unrotated
+      }
+      const side = modules * Number(qr[8]);
+      out.push(`${qr[1]}${w - Number(qr[2]) - side}${qr[3]}${h - Number(qr[4]) - side}${qr[5]}${qr[6]}${qr[7]}${qr[8]}${qr[9]}${qr[10]}${qr[11]}${cr}`);
+      objects++;
+      continue;
+    }
+    let m = TEXT_RE.exec(trimmed) ?? BARCODE_RE.exec(trimmed);
     if (m) {
       const rot = (Number(m[6]) + 180) % 360;
       out.push(`${m[1]}${w - Number(m[2])}${m[3]}${h - Number(m[4])}${m[5]}${rot}${m[7]}${cr}`);

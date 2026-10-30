@@ -23,7 +23,8 @@ describe("rotateTspl180", () => {
     expect(r.objects).toBe(4);
     const lines = r.tspl.split("\r\n");
     expect(lines).toContain('TEXT 229,348,"0",180,9,9,"UV Laundry"');
-    expect(lines).toContain('QRCODE 184,263,M,3,A,180,"ORD-26-2-1"');
+    // a QR is mirrored to its new top-left corner but not rotated: 21 modules x 3 = 63 dots
+    expect(lines).toContain('QRCODE 121,200,M,3,A,0,"ORD-26-2-1"');
     expect(lines).toContain('BARCODE 289,48,"128",40,0,180,2,2,"ORD-26"');
     expect(lines).toContain("BAR 195,324,100,4");
     expect(lines).toContain("DIRECTION 1"); // setup lines untouched
