@@ -41,8 +41,9 @@ export const PrinterSettings = z.object({
    * "partial": feed to the cutter then cut after every tag (leaves the
    * head-to-cutter gap as a blank above each tag).
    * "none": no cut, one continuous strip.
-   * "tight": gap-free slips on an auto-cutter receipt printer — each tag is cut
-   * one tag late, at its top edge. Needs cutterGapMm.
+   * "tight": gap-free slips on an auto-cutter receipt printer — the paper moves
+   * one tag length per tag and each edge is cut when it reaches the cutter, so
+   * every slip is one tag long. Needs cutterGapMm, measured exactly.
    */
   cutMode: z.enum(["none", "partial", "tight"]).optional(),
   /** Distance from the print head to the cutter in mm (measure the blank above a printed tag). */

@@ -29,14 +29,18 @@ const QR_RE =
 const BARCODE_RE =
   /^BARCODE\s+(-?\d+)\s*,\s*(-?\d+)\s*,\s*"[^"]*"\s*,\s*\d+\s*,\s*\d+\s*,\s*\d+\s*,\s*\d+\s*,\s*\d+\s*,\s*"((?:[^"\\]|\\.)*)"/i;
 
-function parse(tspl: string): { items: Item[]; widthDots: number } {
+function parse(tspl: string): { items: Item[]; widthDots: number; heightMm: number | null } {
   const items: Item[] = [];
   let widthDots = DEFAULT_LABEL_WIDTH_DOTS;
+  let heightMm: number | null = null;
   for (const raw of tspl.split(/\r?\n/)) {
     const line = raw.trim();
     const size = /^SIZE\s+([\d.]+)/i.exec(line);
     if (size) {
       widthDots = Math.round(parseFloat(size[1]) * DOTS_PER_MM);
+      // SIZE w,h: the height is in mm when marked "mm", otherwise in inches.
+      const h = /,\s*([\d.]+)\s*(mm)?/i.exec(line);
+      if (h) heightMm = parseFloat(h[1]) * (h[2] ? 1 : 25.4);
       continue;
     }
     let m = TEXT_RE.exec(line);
@@ -60,7 +64,7 @@ function parse(tspl: string): { items: Item[]; widthDots: number } {
     m = BARCODE_RE.exec(line);
     if (m) items.push({ kind: "text", x: +m[1], y: +m[2], big: false, text: ascii(unescape(m[3])) });
   }
-  return { items, widthDots };
+  return { items, widthDots, heightMm };
 }
 
 function qrRaster(data: string, ecc: "L" | "M" | "Q" | "H"): Buffer {
@@ -93,6 +97,13 @@ export interface EscposTag {
    * caller asked for fixed line spacing.
    */
   heightUnits: number | null;
+  /**
+   * Each printed row without its line feed, set alongside heightUnits. A caller
+   * that has to cut between rows feeds them itself (ESC J lineUnits per row).
+   */
+  rows: Buffer[] | null;
+  /** The label's own height from SIZE, in mm, or null when SIZE gives none. */
+  labelHeightMm: number | null;
 }
 
 // Printable columns for a tag of this width: the whole 76 mm roll for a full-width
@@ -106,7 +117,7 @@ function tagCols(widthDots: number): number {
 // fast instead of feeding a blank slip). lineUnits fixes the line spacing so
 // the printed length is known (see EscposTag.heightUnits).
 export function tsplToEscposTag(tspl: string, lineUnits?: number): EscposTag | null {
-  const { items, widthDots } = parse(tspl);
+  const { items, widthDots, heightMm } = parse(tspl);
   if (items.length === 0) return null;
   items.sort((a, b) => a.y - b.y || a.x - b.x);
   const tagWidthCols = tagCols(widthDots);
@@ -115,7 +126,7 @@ export function tsplToEscposTag(tspl: string, lineUnits?: number): EscposTag | n
   if (lineUnits !== undefined) out.push(Buffer.from([ESC, 0x33, lineUnits])); // ESC 3 n
   const align = (n: number): void => void out.push(Buffer.from([ESC, 0x61, n]));
   const lf = Buffer.from("\n");
-  let rows = 0;
+  const rows: Buffer[] = [];
   let measurable = lineUnits !== undefined;
 
   for (let i = 0; i < items.length; ) {
@@ -139,7 +150,6 @@ export function tsplToEscposTag(tspl: string, lineUnits?: number): EscposTag | n
     if (big) measurable = false;
     const cols = big ? Math.floor(tagWidthCols / 2) : tagWidthCols;
     // Every item sits at its own x position, so left/right-aligned fields keep their sides.
-    align(0);
     const line = Array<string>(cols).fill(" ");
     for (const r of row) {
       const col = Math.min(
@@ -148,14 +158,22 @@ export function tsplToEscposTag(tspl: string, lineUnits?: number): EscposTag | n
       );
       for (let k = 0; k < r.text.length && col + k < cols; k++) line[col + k] = r.text[k];
     }
-    out.push(Buffer.from([GS, 0x21, big ? 0x11 : 0x00]), Buffer.from(line.join("").trimEnd()), lf);
-    rows++;
+    const printed = Buffer.concat([
+      Buffer.from([ESC, 0x61, 0]), // left: each item already sits at its own column
+      Buffer.from([GS, 0x21, big ? 0x11 : 0x00]),
+      Buffer.from(line.join("").trimEnd()),
+    ]);
+    out.push(printed, lf);
+    rows.push(printed);
   }
   out.push(Buffer.from([GS, 0x21, 0x00]));
   align(0);
+  const fixed = measurable && lineUnits !== undefined;
   return {
     bytes: Buffer.concat(out),
-    heightUnits: measurable && lineUnits !== undefined ? rows * lineUnits : null,
+    heightUnits: fixed ? rows.length * lineUnits : null,
+    rows: fixed ? rows : null,
+    labelHeightMm: heightMm,
   };
 }
 

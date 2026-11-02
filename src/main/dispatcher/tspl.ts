@@ -50,15 +50,13 @@ export async function dispatchTspl(req: PrintRequest, deps: TsplDeps = {}): Prom
     const settings = (deps.settings ?? resolveSettings)(req.printerName);
     trace(`TSPL tag to ESC/POS printer; cut=${settings.cutMode ?? "partial"}, gap=${settings.cutterGapMm ?? "not set"}`);
     if (settings.cutMode === "tight" && settings.cutterGapMm !== undefined) {
-      // Gap-free slips: cut each tag at its own top edge. Falls through to the normal
-      // feed-then-cut path when the tag's length can't be known or exceeds the gap.
+      // Gap-free slips, one tag long each. Falls through to the normal
+      // feed-then-cut path when the tag's length can't be known.
       const tag = tsplToEscposTag(text, LINE_UNITS);
-      if (!tag?.heightUnits) {
+      if (!tag?.rows) {
         trace("tight skipped: tag has a QR code or double-size row, so its length is unknown");
       } else {
-        const tight = await dispatchTightTag(req, tag.bytes, tag.heightUnits, settings, deps);
-        if (tight) return tight;
-        trace("tight skipped: tag is taller than the head-to-cutter gap");
+        return dispatchTightTag(req, tag.rows, LINE_UNITS, tag.labelHeightMm, settings, deps);
       }
     } else if (settings.cutMode === "tight") {
       trace("tight skipped: head-to-cutter gap not set");

@@ -14,7 +14,7 @@ function row(p) {
     <label>Cut <select class="cut">
       <option value="partial">After each tag</option>
       <option value="none">None (continuous)</option>
-      <option value="tight">Tight (no blank, 1 tag late)</option>
+      <option value="tight">Tight (one tag per slip)</option>
     </select></label>
     <label>Head-to-cutter (mm) <input type="number" class="gap" min="5" max="100" step="0.5" /></label>
     <label>Density <input type="number" class="density" min="0" max="15" /></label>

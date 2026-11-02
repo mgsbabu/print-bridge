@@ -4,6 +4,7 @@ import { hasAutoCutter } from "./printers";
 import { describeEscpos, fitToBixolon76, hasCut } from "./escpos-fit";
 import { applyEscposSettings, type SettingsLookup } from "./print-settings";
 import { resolveSettings } from "./printers";
+import { flushTight } from "./tight-cut";
 import { log } from "../logger";
 import { trace } from "../job-trace";
 import type { PrintResult } from "./pdf";
@@ -15,8 +16,11 @@ export interface EscposDeps extends RawBytesDeps {
 // GS V 66 3 — feed to the cut position, then partial cut (1D 56 42 03).
 const FEED_AND_CUT = Buffer.from([0x1d, 0x56, 0x42, 0x03]);
 
-export function dispatchEscpos(req: PrintRequest, deps: EscposDeps = {}): Promise<PrintResult> {
+export async function dispatchEscpos(req: PrintRequest, deps: EscposDeps = {}): Promise<PrintResult> {
   const settings = (deps.settings ?? resolveSettings)(req.printerName);
+  // Tight-cut tags still between the head and the cutter go out first, each cut
+  // off, or this job's feed-then-cut would carry them out as one strip.
+  if (hasAutoCutter(req.printerName)) await flushTight(req.printerName, deps);
   let payload: Buffer = Buffer.from(req.payloadBase64, "base64");
 
   // Auto-cutter printers (BIXOLON SRP-275III, 76 mm roll): word-wrap to the
