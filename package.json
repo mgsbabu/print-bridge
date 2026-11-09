@@ -1,6 +1,6 @@
 {
 	"name": "print-bridge",
-	"version": "0.1.9",
+	"version": "0.1.10",
 	"description": "Local print bridge agent for FabPos — pushes PDF/ZPL/ESC-POS/TSPL jobs from the cloud web app to outlet printers.",
 	"main": "dist/main/index.js",
 	"author": "FabPos Technologies Pvt Ltd",
