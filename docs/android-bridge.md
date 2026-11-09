@@ -8,7 +8,7 @@ It is **sideloaded**. It is not published to Google Play. The APK is attached to
 `.exe` / `.dmg`:
 
 ```
-TailorApp-Print-Bridge-<version>.apk      applicationId  in.tailorapp.printbridge
+fabpos-print-bridge-<version>.apk      applicationId  in.tailorapp.printbridge
 ```
 
 The source is in `android/`. The wire protocol is the one in `src/main/server.ts` and `src/shared/protocol.ts`
@@ -23,13 +23,13 @@ and is **not** changed by this app.
 
 ## Install on a POS
 
-1. Download `TailorApp-Print-Bridge-<version>.apk` from the GitHub Release.
+1. Download `fabpos-print-bridge-<version>.apk` from the GitHub Release.
 2. Install it, either:
-   - **adb:** `adb install -r TailorApp-Print-Bridge-<version>.apk` (USB debugging on; the `-r` keeps the pairing
+   - **adb:** `adb install -r fabpos-print-bridge-<version>.apk` (USB debugging on; the `-r` keeps the pairing
      when upgrading), or
    - **on the device:** copy the APK over (USB stick, download link), allow **Install unknown apps** for the app you
      open it with, then tap the file.
-3. Open **TailorApp Print Bridge** once. Allow notifications when asked (Android 13+).
+3. Open **FabPos Print Bridge** once. Allow notifications when asked (Android 13+).
 4. Set the app to **Unrestricted / not battery optimized** (the app shows a hint and a button) so Android does not
    kill the bridge in the background.
 
@@ -103,7 +103,7 @@ Settings → Secrets and variables → Actions:
 ### 3. Release
 
 Pushing a `v*` tag runs the `android` job in `.github/workflows/release.yml` after the desktop jobs. It runs the unit
-tests, builds the signed APK, names it `TailorApp-Print-Bridge-<version>.apk` and uploads it to the same GitHub
+tests, builds the signed APK, names it `fabpos-print-bridge-<version>.apk` and uploads it to the same GitHub
 Release as the `.exe` / `.dmg`. **A tag build fails if `ANDROID_KEYSTORE_BASE64` is missing**; it will not publish
 a debug-signed APK.
 

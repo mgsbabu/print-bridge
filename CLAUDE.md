@@ -1,4 +1,4 @@
-# TailorApp Print Bridge — Claude notes
+# FabPos Print Bridge — Claude notes
 
 ## Environment
 - Node 20, TypeScript 5.6, Electron 33

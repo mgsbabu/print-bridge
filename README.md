@@ -1,6 +1,6 @@
-# TailorApp Print Bridge
+# FabPos Print Bridge
 
-Local agent that lets the TailorApp web app print tags,
+Local agent that lets the FabPos web app print tags,
 receipts, and thermal labels on printers attached to an outlet PC or POS.
 
 See `docs/` for the spec. See `CLAUDE.md` for repo conventions.

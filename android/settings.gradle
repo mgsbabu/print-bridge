@@ -14,5 +14,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = 'TailorApp Print Bridge'
+rootProject.name = 'FabPos Print Bridge'
 include ':app'

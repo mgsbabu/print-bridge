@@ -117,7 +117,7 @@ class MainActivity : Activity() {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(16), dp(16), dp(16), dp(24))
         }
-        root.addView(text("TailorApp Print Bridge", 22f, bold = true))
+        root.addView(text("FabPos Print Bridge", 22f, bold = true))
         root.addView(text("Version ${BuildConfig.VERSION_NAME}", 12f))
 
         // -- Pair

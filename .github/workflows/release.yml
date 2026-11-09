@@ -225,7 +225,7 @@ jobs:
         shell: bash
         run: |
           set -e
-          out="TailorApp-Print-Bridge-${{ steps.version.outputs.version }}.apk"
+          out="fabpos-print-bridge-${{ steps.version.outputs.version }}.apk"
           cp android/app/build/outputs/apk/release/app-release.apk "$out"
           echo "file=$out" >> "$GITHUB_OUTPUT"
 

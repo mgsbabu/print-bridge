@@ -14,7 +14,7 @@ export function openPairingWindow(): void {
     resizable: false,
     minimizable: false,
     maximizable: false,
-    title: "Pair with TailorApp",
+    title: "Pair with FabPos",
     show: false,
     webPreferences: {
       nodeIntegration: false,

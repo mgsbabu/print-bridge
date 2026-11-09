@@ -1,6 +1,6 @@
 appId: in.tailorapp.printbridge
-productName: TailorApp Print Bridge
-copyright: Copyright © 2026 TailorApp Technologies Pvt Ltd
+productName: FabPos Print Bridge
+copyright: Copyright © 2026 FabPos Technologies Pvt Ltd
 
 directories:
   output: release
@@ -39,6 +39,7 @@ mac:
       arch:
         - arm64
   notarize: false
+  artifactName: "fabpos-print-bridge-${version}-${arch}.${ext}"
 
 win:
   target:
@@ -54,7 +55,7 @@ win:
 nsis:
   buildUniversalInstaller: false
   # One installer per architecture (a combined x64+ia32 file would be ~2x the size).
-  artifactName: "TailorApp-Print-Bridge-Setup-${version}-${arch}.${ext}"
+  artifactName: "fabpos-print-bridge-setup-${version}-${arch}.${ext}"
   oneClick: false
   perMachine: false
   allowToChangeInstallationDirectory: true
@@ -67,6 +68,7 @@ linux:
     - deb
   icon: assets/icon.png
   category: Utility
+  artifactName: "fabpos-print-bridge-${version}-${arch}.${ext}"
   maintainer: support@fabtailor.in
 
 publish:

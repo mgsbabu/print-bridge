@@ -1,4 +1,4 @@
-# TailorApp Print Bridge — Spec & Build Guide
+# FabPos Print Bridge — Spec & Build Guide
 
 > A downloadable desktop agent that lets the TailorApp web app print
 > tags / receipts / thermal labels on locally-attached printers in
@@ -77,7 +77,7 @@ Three job kinds in v1:
 │  └─────────────────┘         │                           │
 │                              ▼                           │
 │                  ┌────────────────────────┐              │
-│                  │  TailorApp Print Bridge│              │
+│                  │  FabPos Print Bridge│              │
 │                  │  Electron tray app     │              │
 │                  │                        │              │
 │                  │  ┌──────────────────┐  │              │
@@ -488,7 +488,7 @@ print-bridge/
 
 ```yaml
 appId: in.tailorapp.printbridge
-productName: TailorApp Print Bridge
+productName: FabPos Print Bridge
 copyright: Copyright © 2026 TailorApp
 directories:
   output: release
@@ -545,7 +545,7 @@ Drop a `CLAUDE.md` at the repo root so Claude has the project
 context every session:
 
 ```markdown
-# TailorApp Print Bridge — Claude notes
+# FabPos Print Bridge — Claude notes
 
 ## Environment
 - Node 20, TypeScript 5.6, Electron 33
@@ -606,7 +606,7 @@ working tray app you can manually exercise.
 - [ ] `src/main/server.ts` with `/health`, `/pair`, auth middleware.
 - [ ] `src/main/store.ts` persists the paired token securely via
       `electron-store` with OS keychain encryption.
-- [ ] Pairing UX: tray menu shows "Pair with TailorApp" → opens a
+- [ ] Pairing UX: tray menu shows "Pair with FabPos" → opens a
       window with a `pairing-code` field; on submit POSTs `/pair` to
       itself with the seed token.
 - [ ] Vitest contract tests for every endpoint (401 without token,
@@ -694,9 +694,9 @@ npm run package:linux  # cross-build to Linux
 
 Output lands in `release/`:
 
-- `TailorApp Print Bridge Setup 1.0.0.exe` (Windows NSIS)
-- `TailorApp Print Bridge-1.0.0.dmg` (macOS)
-- `TailorApp Print Bridge-1.0.0.AppImage` (Linux)
+- `FabPos Print Bridge Setup 1.0.0.exe` (Windows NSIS)
+- `FabPos Print Bridge-1.0.0.dmg` (macOS)
+- `FabPos Print Bridge-1.0.0.AppImage` (Linux)
 - `print-bridge_1.0.0_amd64.deb` (Debian/Ubuntu)
 
 ### CI build (signed releases)
@@ -870,7 +870,7 @@ End-to-end flow the outlet operator goes through:
    (no admin password needed). **macOS**: `.dmg`, drag to
    Applications.
 5. Bridge launches; tray icon goes red ("Not paired").
-6. Operator clicks tray → **"Pair with TailorApp"**.
+6. Operator clicks tray → **"Pair with FabPos"**.
 7. A pairing window opens locally → operator pastes the code from
    the web page.
 8. Bridge POSTs `/pair` to itself with `{token, tenantId, orgUnitId}`;

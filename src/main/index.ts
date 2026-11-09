@@ -1,3 +1,4 @@
+import "./legacy-user-data";
 import { app, Menu, Tray, Notification, nativeImage, ipcMain } from "electron";
 import path from "node:path";
 import { startServer, BRIDGE_PORT, type JobRecorder } from "./server";
@@ -55,7 +56,7 @@ function buildMenu(): Menu {
     { type: "separator" },
     pairing
       ? { label: `Paired with tenant ${pairing.tenantId}`, enabled: false }
-      : { label: "Pair with TailorApp", click: () => openPairingWindow() },
+      : { label: "Pair with FabPos", click: () => openPairingWindow() },
     pairing
       ? {
           label: "Unpair",
@@ -82,7 +83,7 @@ function buildMenu(): Menu {
 function refreshMenu(): void {
   if (!tray) return;
   tray.setContextMenu(buildMenu());
-  tray.setToolTip(`TailorApp Print Bridge — ${statusLabel()}`);
+  tray.setToolTip(`FabPos Print Bridge — ${statusLabel()}`);
 }
 
 async function reloadPrintersAndRefresh(): Promise<void> {
@@ -113,7 +114,7 @@ app.whenReady().then(() => {
   }
 
   tray = new Tray(icon);
-  tray.setToolTip("TailorApp Print Bridge");
+  tray.setToolTip("FabPos Print Bridge");
   refreshMenu();
 
   ipcMain.handle("add-network-printer", (_event, payload) => {
@@ -158,7 +159,7 @@ app.whenReady().then(() => {
       refreshMenu();
       if (wasUnpaired && Notification.isSupported()) {
         new Notification({
-          title: "TailorApp Print Bridge",
+          title: "FabPos Print Bridge",
           body: `Paired with tenant ${p.tenantId}`,
         }).show();
       }
